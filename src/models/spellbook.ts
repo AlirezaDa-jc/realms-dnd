@@ -1,0 +1,60 @@
+
+import { Spell } from './spell';
+
+export class Spellbook {
+  spells: Spell[];
+
+  constructor(spells: Spell[] = []) {
+    this.spells = [...spells];
+  }
+
+  addSpell(spell: Spell): void {
+    if (
+      this.spells.some(
+        (existing) =>
+          existing.name.toLocaleLowerCase() ===
+          spell.name.toLocaleLowerCase(),
+      )
+    ) {
+      throw new Error(`Spell already exists: ${spell.name}`);
+    }
+
+    this.spells.push(spell);
+  }
+
+  removeSpell(name: string): void {
+    const index = this.spells.findIndex(
+      (spell) =>
+        spell.name.toLocaleLowerCase() ===
+        name.trim().toLocaleLowerCase(),
+    );
+
+    if (index === -1) {
+      throw new Error(`Spell not found: ${name}`);
+    }
+
+    this.spells.splice(index, 1);
+  }
+
+  getSpell(name: string): Spell {
+    const spell = this.spells.find(
+      (item) =>
+        item.name.toLocaleLowerCase() ===
+        name.trim().toLocaleLowerCase(),
+    );
+
+    if (!spell) {
+      throw new Error(`Spell not found: ${name}`);
+    }
+
+    return spell;
+  }
+
+  getSpellsByLevel(level: number): Spell[] {
+    return this.spells.filter((spell) => spell.level === level);
+  }
+
+  getCantrips(): Spell[] {
+    return this.getSpellsByLevel(0);
+  }
+}
