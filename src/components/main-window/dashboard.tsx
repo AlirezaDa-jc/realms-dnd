@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Text,
     View,
     useColorScheme
@@ -13,6 +14,9 @@ import { saveCharacter } from '@/database/character-repository';
 import { Character } from '@/models/character';
 
 import AbilityScores from './ability-scores';
+import BonusManager, {
+    type BonusOption,
+} from './bonus-manager';
 import ClassActions from './class-actions';
 import CombatStats from './combat-stats';
 import Defenses from './defenses';
@@ -25,9 +29,6 @@ import SavingThrows from './saving-throws';
 import Skills from './skills';
 import SpellbookCard from './spell-book';
 import SpellColumn from './spell-column';
-import BonusManager, {
-    type BonusOption,
-} from './bonus-manager';
 
 import type { Ability } from '@/models/character';
 import type { BonusCategory, CombatStat, Skill } from '@/rules/dnd5e-2024';
@@ -205,6 +206,109 @@ export default function Dashboard({
         [],
     );
 
+    const handleAddTrait = useCallback(
+        async (trait: string) => {
+            if (!character) return;
+
+            const updatedCharacter = Object.assign(
+                Object.create(Object.getPrototypeOf(character)),
+                character,
+                { traits: [...character.traits] },
+            ) as Character;
+
+            try {
+                updatedCharacter.addTrait(trait);
+
+                setCharacter(updatedCharacter);
+                await saveCharacter(updatedCharacter);
+            } catch (error) {
+                setCharacter(character);
+
+                Alert.alert(
+                    'Could not add trait',
+                    error instanceof Error
+                        ? error.message
+                        : 'Failed to save the trait.',
+                );
+            }
+        },
+        [character],
+    );
+
+    const handleRemoveTrait = useCallback(
+        (trait: string) => {
+            if (!character) return;
+
+            Alert.alert(
+                'Remove Trait',
+                `Are you sure you want to remove "${trait}"?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => {
+                            void (async () => {
+                                const updatedCharacter = Object.assign(
+                                    Object.create(
+                                        Object.getPrototypeOf(character),
+                                    ),
+                                    character,
+                                    { traits: [...character.traits] },
+                                ) as Character;
+
+                                try {
+                                    updatedCharacter.removeTrait(trait);
+
+                                    setCharacter(updatedCharacter);
+                                    await saveCharacter(updatedCharacter);
+                                } catch (error) {
+                                    setCharacter(character);
+
+                                    Alert.alert(
+                                        'Could not remove trait',
+                                        error instanceof Error
+                                            ? error.message
+                                            : 'Failed to save the change.',
+                                    );
+                                }
+                            })();
+                        },
+                    },
+                ],
+            );
+        },
+        [character],
+    );
+
+    const handleUploadPortrait = useCallback(
+        async (uri: string) => {
+            if (!character) return;
+
+            const updatedCharacter = Object.assign(
+                Object.create(Object.getPrototypeOf(character)),
+                character,
+                { portraitUri: uri },
+            ) as Character;
+
+            setCharacter(updatedCharacter);
+
+            try {
+                await saveCharacter(updatedCharacter);
+            } catch (error) {
+                setCharacter(character);
+
+                Alert.alert(
+                    'Save failed',
+                    error instanceof Error
+                        ? error.message
+                        : 'Could not save the portrait.',
+                );
+            }
+        },
+        [character],
+    );
+
     if (loading) {
         return (
             <View
@@ -322,9 +426,9 @@ export default function Dashboard({
                             );
                         }}
                         onChangeText={handleChangeText}
-                        onAddTrait={() => { }}
-                        onRemoveTrait={() => { }}
-                        onUploadPortrait={() => { }}
+                        onAddTrait={handleAddTrait}
+                        onRemoveTrait={handleRemoveTrait}
+                        onUploadPortrait={handleUploadPortrait}
                     />
                 </View>
             </View>
