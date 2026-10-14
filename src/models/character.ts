@@ -34,152 +34,167 @@ export const DEFAULT_SPELLCASTING_ABILITIES: Partial<
     Wizard: 'int',
 };
 
-const DEFAULT_ABILITIES: Record<Ability, number> = {
-    str: 10,
-    dex: 16,
-    con: 14,
-    int: 18,
-    wis: 12,
-    cha: 10,
-};
-
-const DEFAULT_SKILL_PROFICIENCIES: Record<Skill, ProficiencyLevel> = {
-    acrobatics: 0,
-    animal_handling: 0,
-    arcana: 0,
-    athletics: 0,
-    deception: 0,
-    history: 0,
-    insight: 0,
-    intimidation: 0,
-    investigation: 0,
-    medicine: 0,
-    nature: 0,
-    perception: 0,
-    performance: 0,
-    persuasion: 0,
-    religion: 0,
-    sleight_of_hand: 0,
-    stealth: 0,
-    survival: 0,
-};
-
 type DefenseCategory =
     | 'resistance'
     | 'damage_immunity'
     | 'vulnerability'
     | 'condition_immunity';
 
-export type CharacterInit = Partial<Omit<Character, 'id'>> & {
-    id?: string;
-};
+type RequiredCharacterFields =
+    | 'name'
+    | 'species'
+    | 'characterClass'
+    | 'level'
+    | 'background'
+    | 'abilities'
+    | 'maxHp'
+    | 'currentHp'
+    | 'speed';
+
+/**
+ * Fields collected by the character form are required.
+ * All other fields may be omitted when creating a character.
+ * Omitted fields receive empty structural values.
+ */
+export type CharacterInit = Pick<Character, RequiredCharacterFields> &
+    Partial<Omit<Character, 'id' | RequiredCharacterFields>> & {
+        id?: string;
+    };
 
 export class Character {
     // Identity
     id: string;
-    name = 'Kaelen';
-    species = 'Elf';
-    characterClass = 'Wizard';
-    level = 1;
-    background = 'Sage';
+    name: string;
+    species: string;
+    characterClass: string;
+    level: number;
+    background: string;
 
     // Armor
-    baseArmorClass = 10;
-    armorProficiencies: string[] = [];
-    armorUsesDexModifier = true;
-    armorDexModifierHasLimit = false;
-    armorDexModifierLimit: number | null = null;
+    baseArmorClass: number;
+    armorProficiencies: string[];
+    armorUsesDexModifier: boolean;
+    armorDexModifierHasLimit: boolean;
+    armorDexModifierLimit: number | null;
 
     // Ability scores
-    abilities: Record<Ability, number> = { ...DEFAULT_ABILITIES };
+    abilities: Record<Ability, number>;
 
     // Spells
-    spellbook = new Spellbook();
-    spellSlots: Record<number, SpellSlot> = {};
+    spellbook: Spellbook;
+    spellSlots: Record<number, SpellSlot>;
 
     // Saving throws and skills
-    savingThrowProficiencies: Record<Ability, ProficiencyLevel> = {
-        str: 0,
-        dex: 0,
-        con: 0,
-        int: 0,
-        wis: 0,
-        cha: 0,
-    };
-    skillProficiencies: Record<Skill, ProficiencyLevel> = {
-        ...DEFAULT_SKILL_PROFICIENCIES,
-    };
+    savingThrowProficiencies: Record<Ability, ProficiencyLevel>;
+    skillProficiencies: Record<Skill, ProficiencyLevel>;
 
     // Spellcasting
-    spellcastingAbility: Ability | null = null;
+    spellcastingAbility: Ability | null;
 
     // Defenses
-    damageResistances: string[] = [];
-    damageImmunities: string[] = [];
-    damageVulnerabilities: string[] = [];
-    conditionImmunities: string[] = [];
+    damageResistances: string[];
+    damageImmunities: string[];
+    damageVulnerabilities: string[];
+    conditionImmunities: string[];
 
     // Class features and resources
-    classActions: ClassAction[] = [];
-    resources: CharacterResource[] = [];
+    classActions: ClassAction[];
+    resources: CharacterResource[];
 
     // Hit points
-    maxHp = 10;
-    currentHp = 10;
-    temporaryHp = 0;
+    maxHp: number;
+    currentHp: number;
+    temporaryHp: number;
 
     // Movement
-    speed = 30;
+    speed: number;
 
     // Character details
-    traits: string[] = [];
-    ideals = '';
-    bonds = '';
-    flaws = '';
-    languages: string[] = [];
-    weaponProficiencies: string[] = [];
-    toolProficiencies: string[] = [];
-    equipment: EquipmentItem[] = [];
-    inspiration = false;
-    notes = '';
-    portraitPath = '';
-    logs: string[] = [];
-    statBonuses: StatBonus[] = [];
+    traits: string[];
+    ideals: string;
+    bonds: string;
+    flaws: string;
+    languages: string[];
+    weaponProficiencies: string[];
+    toolProficiencies: string[];
+    equipment: EquipmentItem[];
+    inspiration: boolean;
+    notes: string;
+    portraitPath: string;
+    logs: string[];
+    statBonuses: StatBonus[];
 
-    constructor(data: CharacterInit = {}) {
-        Object.assign(this, data);
+    constructor(data: CharacterInit & { id: string });
+    constructor(data: CharacterInit);
+    constructor(data: CharacterInit) {
+        this.id = data.id ?? createCharacterId();
 
-        this.id =
-            data.id ??
-            `character-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        // Values supplied by the form
+        this.name = data.name;
+        this.species = data.species;
+        this.characterClass = data.characterClass;
+        this.level = data.level;
+        this.background = data.background;
+        this.abilities = { ...data.abilities };
+        this.maxHp = data.maxHp;
+        this.currentHp = data.currentHp;
+        this.speed = data.speed;
 
-        // Merge partial maps with defaults instead of losing missing keys.
-        this.abilities = {
-            ...DEFAULT_ABILITIES,
-            ...data.abilities,
-        };
+        // Armor: not supplied by the form
+        this.baseArmorClass = data.baseArmorClass ?? 0;
+        this.armorProficiencies = [...(data.armorProficiencies ?? [])];
+        this.armorUsesDexModifier = data.armorUsesDexModifier ?? false;
+        this.armorDexModifierHasLimit =
+            data.armorDexModifierHasLimit ?? false;
+        this.armorDexModifierLimit = data.armorDexModifierLimit ?? null;
 
+        // Spells: empty until configured
+        this.spellbook = data.spellbook ?? new Spellbook();
+        this.spellSlots = { ...(data.spellSlots ?? {}) };
+
+        // Proficiencies: initialize every supported entry to zero
         this.savingThrowProficiencies = {
-            str: 0,
-            dex: 0,
-            con: 0,
-            int: 0,
-            wis: 0,
-            cha: 0,
+            ...Object.fromEntries(
+                ABILITIES.map((ability) => [ability, 0]),
+            ),
             ...data.savingThrowProficiencies,
-        };
+        } as Record<Ability, ProficiencyLevel>;
 
         this.skillProficiencies = {
-            ...DEFAULT_SKILL_PROFICIENCIES,
+            ...Object.fromEntries(SKILLS.map((skill) => [skill, 0])),
             ...data.skillProficiencies,
-        };
+        } as Record<Skill, ProficiencyLevel>;
 
-        if (data.spellcastingAbility !== undefined) {
-            this.spellcastingAbility = data.spellcastingAbility;
-        } else {
-            this.spellcastingAbility =
-                DEFAULT_SPELLCASTING_ABILITIES[this.characterClass] ?? null;
-        }
+        // No spellcasting ability until configured
+        this.spellcastingAbility = data.spellcastingAbility ?? null;
+
+        // Defenses
+        this.damageResistances = [...(data.damageResistances ?? [])];
+        this.damageImmunities = [...(data.damageImmunities ?? [])];
+        this.damageVulnerabilities = [...(data.damageVulnerabilities ?? [])];
+        this.conditionImmunities = [...(data.conditionImmunities ?? [])];
+
+        // Class features and resources
+        this.classActions = [...(data.classActions ?? [])];
+        this.resources = [...(data.resources ?? [])];
+
+        // Hit points
+        this.temporaryHp = data.temporaryHp ?? 0;
+
+        // Character details
+        this.traits = [...(data.traits ?? [])];
+        this.ideals = data.ideals ?? '';
+        this.bonds = data.bonds ?? '';
+        this.flaws = data.flaws ?? '';
+        this.languages = [...(data.languages ?? [])];
+        this.weaponProficiencies = [...(data.weaponProficiencies ?? [])];
+        this.toolProficiencies = [...(data.toolProficiencies ?? [])];
+        this.equipment = [...(data.equipment ?? [])];
+        this.inspiration = data.inspiration ?? false;
+        this.notes = data.notes ?? '';
+        this.portraitPath = data.portraitPath ?? '';
+        this.logs = [...(data.logs ?? [])];
+        this.statBonuses = [...(data.statBonuses ?? [])];
 
         this.validate();
     }
@@ -214,9 +229,7 @@ export class Character {
         }
 
         if (this.currentHp < 0 || this.currentHp > this.maxHp) {
-            throw new Error(
-                'Current HP must be between 0 and maximum HP.',
-            );
+            throw new Error('Current HP must be between 0 and maximum HP.');
         }
 
         if (this.temporaryHp < 0) {
@@ -229,8 +242,10 @@ export class Character {
     }
 
     abilityScore(ability: Ability): number {
-        return this.abilities[ability] +
-            this.totalStatBonus(ability, 'ability_score');
+        return (
+            this.abilities[ability] +
+            this.totalStatBonus(ability, 'ability_score')
+        );
     }
 
     abilityModifier(ability: Ability): number {
@@ -243,9 +258,7 @@ export class Character {
 
     private spellcastingScore(): number {
         if (this.spellcastingAbility === null) {
-            throw new Error(
-                "Set the character's spellcasting ability first.",
-            );
+            throw new Error("Set the character's spellcasting ability first.");
         }
 
         return this.abilityScore(this.spellcastingAbility);
@@ -374,9 +387,7 @@ export class Character {
     }
 
     getArmorDexModifier(): number {
-        if (!this.armorUsesDexModifier) {
-            return 0;
-        }
+        if (!this.armorUsesDexModifier) return 0;
 
         const dexModifier = this.abilityModifier('dex');
 
@@ -427,7 +438,8 @@ export class Character {
 
         if (
             !defenses.some(
-                (item) => item.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+                (item) =>
+                    item.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
             )
         ) {
             defenses.push(normalized);
@@ -441,9 +453,7 @@ export class Character {
                 item.toLocaleLowerCase() === value.trim().toLocaleLowerCase(),
         );
 
-        if (index !== -1) {
-            defenses.splice(index, 1);
-        }
+        if (index !== -1) defenses.splice(index, 1);
     }
 
     hasDefense(category: DefenseCategory, value: string): boolean {
@@ -456,8 +466,8 @@ export class Character {
     addResource(
         name: string,
         maximum: number,
-        recovery: RecoveryType = 'short_rest',
-        current?: number,
+        recovery: RecoveryType,
+        current: number,
     ): CharacterResource {
         if (
             this.resources.some(
@@ -471,7 +481,7 @@ export class Character {
         const resource = new CharacterResource(
             name,
             maximum,
-            current ?? maximum,
+            current,
             recovery,
         );
 
@@ -498,9 +508,7 @@ export class Character {
     ): void {
         const normalized = value.trim();
 
-        if (!normalized) {
-            throw new Error('Value cannot be empty.');
-        }
+        if (!normalized) throw new Error('Value cannot be empty.');
 
         const categories = {
             language: this.languages,
@@ -538,9 +546,7 @@ export class Character {
                 item.toLocaleLowerCase() === value.trim().toLocaleLowerCase(),
         );
 
-        if (index === -1) {
-            throw new Error(`${value} not found.`);
-        }
+        if (index === -1) throw new Error(`${value} not found.`);
 
         items.splice(index, 1);
     }
@@ -548,9 +554,7 @@ export class Character {
     addTrait(trait: string): void {
         const normalized = trait.trim();
 
-        if (!normalized) {
-            throw new Error('Trait cannot be empty.');
-        }
+        if (!normalized) throw new Error('Trait cannot be empty.');
 
         if (
             this.traits.some(
@@ -570,9 +574,7 @@ export class Character {
                 item.toLocaleLowerCase() === trait.trim().toLocaleLowerCase(),
         );
 
-        if (index === -1) {
-            throw new Error(`Trait not found: ${trait}`);
-        }
+        if (index === -1) throw new Error(`Trait not found: ${trait}`);
 
         this.traits.splice(index, 1);
     }
@@ -580,13 +582,9 @@ export class Character {
     setSpellSlots(
         level: number,
         maximum: number,
-        current?: number,
+        current: number,
     ): void {
-        this.spellSlots[level] = new SpellSlot(
-            level,
-            maximum,
-            current ?? maximum,
-        );
+        this.spellSlots[level] = new SpellSlot(level, maximum, current);
     }
 
     getSpellSlots(level: number): SpellSlot {
@@ -601,9 +599,7 @@ export class Character {
 
     restoreSpellSlots(level?: number, amount?: number): void {
         if (level === undefined) {
-            Object.values(this.spellSlots).forEach(
-                (slot) => slot.restore(amount),
-            );
+            Object.values(this.spellSlots).forEach((slot) => slot.restore(amount));
             return;
         }
 
@@ -611,9 +607,7 @@ export class Character {
     }
 
     takeDamage(amount: number): void {
-        if (amount < 0) {
-            throw new Error('Damage cannot be negative.');
-        }
+        if (amount < 0) throw new Error('Damage cannot be negative.');
 
         const absorbed = Math.min(amount, this.temporaryHp);
         const remainingDamage = Math.max(0, amount - this.temporaryHp);
@@ -623,17 +617,13 @@ export class Character {
     }
 
     heal(amount: number): void {
-        if (amount < 0) {
-            throw new Error('Healing cannot be negative.');
-        }
+        if (amount < 0) throw new Error('Healing cannot be negative.');
 
         this.currentHp = Math.min(this.maxHp, this.currentHp + amount);
     }
 
     setTemporaryHp(amount: number): void {
-        if (amount < 0) {
-            throw new Error('Temporary HP cannot be negative.');
-        }
+        if (amount < 0) throw new Error('Temporary HP cannot be negative.');
 
         this.temporaryHp = Math.max(this.temporaryHp, amount);
     }
@@ -657,9 +647,7 @@ export class Character {
         }
 
         for (const action of this.classActions) {
-            if (action.recoverOn(restType)) {
-                action.restoreUses();
-            }
+            if (action.recoverOn(restType)) action.restoreUses();
         }
     }
 
@@ -708,4 +696,8 @@ export class Character {
 
         this.savingThrowProficiencies[ability] = level;
     }
+}
+
+function createCharacterId(): string {
+    return `character-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
