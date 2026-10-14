@@ -29,3 +29,13 @@ export async function loadActiveCharacter(): Promise<Character | null> {
 
     return character;
 }
+
+export async function setActiveCharacter(
+    characterId: string,
+): Promise<Character> {
+    const character = await loadCharacter(characterId);
+
+    await saveSetting(LAST_CHARACTER_KEY, characterId);
+
+    return character;
+}
