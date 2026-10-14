@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
     Pressable,
     ScrollView,
@@ -7,16 +6,55 @@ import {
     useColorScheme,
     View,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+
 import { Colors } from '@/constants/theme';
 import Dashboard from './dashboard';
 import MainHeader from './main-header';
 import Sidebar from './sidebar';
-import { BlurView } from 'expo-blur';
+
+import type { DashboardSection } from './sidebar';
 
 export default function MainLayout() {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [activeSection, setActiveSection] =
+        useState<DashboardSection>('overview');
+
+    const scrollViewRef = useRef<ScrollView>(null);
+    const dashboardTopRef = useRef(0);
+
+    const sectionPositionsRef = useRef<
+        Partial<Record<DashboardSection, number>>
+    >({});
+
+    const handleSectionLayout = useCallback(
+        (section: DashboardSection, y: number) => {
+            sectionPositionsRef.current[section] = y;
+        },
+        [],
+    );
+
+    const handleNavigate = useCallback(
+        (section: DashboardSection) => {
+            setActiveSection(section);
+            setSidebarOpen(false);
+
+            const sectionY = sectionPositionsRef.current[section];
+
+            if (sectionY === undefined) {
+                return;
+            }
+
+            scrollViewRef.current?.scrollTo({
+                y: Math.max(0, dashboardTopRef.current + sectionY),
+                animated: true,
+            });
+        },
+        [],
+    );
 
     return (
         <View
@@ -25,20 +63,30 @@ export default function MainLayout() {
                 backgroundColor: colors.background,
             }}
         >
-            <View style={{
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                borderBottomWidth: 1,
-                borderBottomColor: colors.border,
-                gap: 0
-            }}>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    gap: 0,
+                }}
+            >
                 <Pressable
                     onPress={() => setSidebarOpen((open) => !open)}
                     accessibilityRole="button"
                     accessibilityLabel="Toggle sidebar"
                     style={{ padding: 24 }}
                 >
-                    <Text style={{ color: colors.text, fontSize: 24, marginTop: 18 }}>☰</Text>
+                    <Text
+                        style={{
+                            color: colors.text,
+                            fontSize: 24,
+                            marginTop: 18,
+                        }}
+                    >
+                        ☰
+                    </Text>
                 </Pressable>
 
                 <View style={{ flex: 1 }}>
@@ -47,12 +95,22 @@ export default function MainLayout() {
             </View>
 
             <ScrollView
+                ref={scrollViewRef}
                 contentContainerStyle={{
                     padding: 24,
                     gap: 24,
                 }}
             >
-                <Dashboard />
+                <View
+                    onLayout={(event) => {
+                        dashboardTopRef.current =
+                            event.nativeEvent.layout.y;
+                    }}
+                >
+                    <Dashboard
+                        onSectionLayout={handleSectionLayout}
+                    />
+                </View>
             </ScrollView>
 
             {sidebarOpen && (
@@ -94,7 +152,10 @@ export default function MainLayout() {
                                     : 'rgba(255,250,240,0.55)',
                         }}
                     >
-                        <Sidebar />
+                        <Sidebar
+                            activeSection={activeSection}
+                            onNavigate={handleNavigate}
+                        />
                     </BlurView>
                 </>
             )}

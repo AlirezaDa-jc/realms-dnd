@@ -12,11 +12,13 @@ import {
 
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
+import { CombatStat } from '@/rules/dnd5e-2024';
 import { BlurView } from 'expo-blur';
 
 type CombatStatsProps = {
     character: Character;
     onUpdate: (character: Character) => Promise<void>;
+    onAddBonus?: (stat: CombatStat, title: string) => void;
 };
 
 type HpAction = 'damage' | 'heal' | 'temporary';
@@ -24,6 +26,7 @@ type HpAction = 'damage' | 'heal' | 'temporary';
 export default function CombatStats({
     character,
     onUpdate,
+    onAddBonus,
 }: CombatStatsProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
@@ -162,7 +165,7 @@ export default function CombatStats({
     function renderStat(
         label: string,
         value: string,
-        category: string,
+        category: CombatStat,
     ) {
 
         return (
@@ -179,7 +182,8 @@ export default function CombatStats({
                     {getBonusSummary(category)}
                 </Text>
                 <Pressable
-                    onPress={() => { }}
+                    onPress={() => onAddBonus?.(category, label)}
+                    disabled={!onAddBonus}
                     style={{
                         backgroundColor: colors.backgroundSelected,
                         borderColor: colors.border,
@@ -189,6 +193,7 @@ export default function CombatStats({
                         paddingVertical: 6,
                         alignItems: 'center',
                         justifyContent: 'center',
+                        opacity: onAddBonus ? 1 : 0.5,
                     }}
                 >
                     <Text

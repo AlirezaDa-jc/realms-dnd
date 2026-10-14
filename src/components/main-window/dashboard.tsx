@@ -2,39 +2,135 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
-    ScrollView,
     Text,
     View,
-    useColorScheme,
+    useColorScheme
 } from 'react-native';
-import CombatStats from './combat-stats';
-
-import HeroSection from './hero-section';
-import SpellColumn from './spell-column';
 
 import { Colors } from '@/constants/theme';
 import { loadActiveCharacter } from '@/database/active-character';
 import { saveCharacter } from '@/database/character-repository';
 import { Character } from '@/models/character';
+
 import AbilityScores from './ability-scores';
 import ClassActions from './class-actions';
+import CombatStats from './combat-stats';
 import Defenses from './defenses';
 import Equipment from './equipment';
+import HeroSection from './hero-section';
 import CharacterLogCard from './logs-card';
 import NotesCard from './notes-card';
 import Proficiencies from './proficiencies';
 import SavingThrows from './saving-throws';
 import Skills from './skills';
 import SpellbookCard from './spell-book';
+import SpellColumn from './spell-column';
+import BonusManager, {
+    type BonusOption,
+} from './bonus-manager';
 
-export default function Dashboard() {
+import type { Ability } from '@/models/character';
+import type { BonusCategory, CombatStat, Skill } from '@/rules/dnd5e-2024';
+import type { DashboardSection } from './sidebar';
+
+type DashboardProps = {
+    onSectionLayout?: (
+        section: DashboardSection,
+        y: number,
+    ) => void;
+};
+
+export default function Dashboard({
+    onSectionLayout,
+}: DashboardProps) {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
     const [character, setCharacter] = useState<Character | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    type BonusTarget = {
+        stat: string;
+        title: string;
+        categories: BonusOption[];
+        initialCategory: BonusCategory | null;
+    };
 
+    const [bonusTarget, setBonusTarget] = useState<BonusTarget | null>(null);
+
+    const openBonusManager = useCallback(
+        (
+            stat: string,
+            title: string,
+            categories: BonusOption[],
+            initialCategory: BonusCategory | null,
+        ) => {
+            setBonusTarget({
+                stat,
+                title,
+                categories,
+                initialCategory,
+            });
+        },
+        [],
+    );
+
+    const handleAddAbilityBonus = useCallback(
+        (
+            ability: Ability,
+            category: 'ability_score' | 'ability_check' | 'saving_throw',
+        ) => {
+            const options: BonusOption[] = [
+                { label: 'Ability Score', category: 'ability_score' },
+                { label: 'Ability Check', category: 'ability_check' },
+                { label: 'Saving Throw', category: 'saving_throw' },
+            ];
+
+            openBonusManager(
+                ability,
+                ability.toUpperCase(),
+                options,
+                category,
+            );
+        },
+        [openBonusManager],
+    );
+
+    const handleAddSavingThrowBonus = useCallback(
+        (ability: Ability, category: 'saving_throw') => {
+            openBonusManager(
+                ability,
+                `${ability.toUpperCase()} Saving Throw`,
+                [{ label: 'Saving Throw', category }],
+                category,
+            );
+        },
+        [openBonusManager],
+    );
+
+    const handleAddSkillBonus = useCallback(
+        (skill: Skill, displayName: string) => {
+            openBonusManager(
+                skill,
+                `${displayName} Bonus`,
+                [{ label: 'Skill', category: 'skill' }],
+                'skill',
+            );
+        },
+        [openBonusManager],
+    );
+
+    const handleAddCombatBonus = useCallback(
+        (stat: CombatStat, title: string) => {
+            openBonusManager(
+                stat,
+                title,
+                [{ label: 'Bonus', category: null }],
+                null,
+            );
+        },
+        [openBonusManager],
+    );
     useFocusEffect(
         useCallback(() => {
             let active = true;
@@ -120,7 +216,10 @@ export default function Dashboard() {
                     backgroundColor: colors.background,
                 }}
             >
-                <ActivityIndicator size="large" color={colors.accent} />
+                <ActivityIndicator
+                    size="large"
+                    color={colors.accent}
+                />
             </View>
         );
     }
@@ -136,7 +235,12 @@ export default function Dashboard() {
                     backgroundColor: colors.background,
                 }}
             >
-                <Text style={{ color: colors.text, textAlign: 'center' }}>
+                <Text
+                    style={{
+                        color: colors.text,
+                        textAlign: 'center',
+                    }}
+                >
                     {error}
                 </Text>
             </View>
@@ -178,80 +282,232 @@ export default function Dashboard() {
     }
 
     return (
-        <ScrollView>
-            <View>
-                <HeroSection
-                    name={character.name}
-                    species={character.species}
-                    characterClass={character.characterClass}
-                    level={character.level}
-                    background={character.background}
-                    traits={character.traits}
-                    ideals={character.ideals}
-                    bonds={character.bonds}
-                    flaws={character.flaws}
-                    onTakeRest={async (restType) => {
-                        character.takeRest(restType);
+        <View style={{ gap: 16 }}>
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'overview',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <View
+                    onLayout={(event) =>
+                        onSectionLayout?.(
+                            'character',
+                            event.nativeEvent.layout.y,
+                        )
+                    }
+                >
+                    <HeroSection
+                        name={character.name}
+                        species={character.species}
+                        characterClass={character.characterClass}
+                        level={character.level}
+                        background={character.background}
+                        traits={character.traits}
+                        ideals={character.ideals}
+                        bonds={character.bonds}
+                        flaws={character.flaws}
+                        onTakeRest={async (restType) => {
+                            character.takeRest(restType);
 
-                        await handleCombatUpdate(
-                            Object.assign(
-                                Object.create(Object.getPrototypeOf(character)),
-                                character,
-                            ) as Character,
-                        );
-                    }}
-                    onChangeText={handleChangeText}
-                    onAddTrait={() => { }}
-                    onRemoveTrait={() => { }}
-                    onUploadPortrait={() => { }}
+                            await handleCombatUpdate(
+                                Object.assign(
+                                    Object.create(
+                                        Object.getPrototypeOf(character),
+                                    ),
+                                    character,
+                                ) as Character,
+                            );
+                        }}
+                        onChangeText={handleChangeText}
+                        onAddTrait={() => { }}
+                        onRemoveTrait={() => { }}
+                        onUploadPortrait={() => { }}
+                    />
+                </View>
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'combat-stats',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <CombatStats
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                    onAddBonus={handleAddCombatBonus}
                 />
             </View>
-            <CombatStats
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <View style={{
-                flex: 1, minWidth: 0, gap: 16, marginTop: 16,
-            }}>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'spell-slots',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
                 <SpellColumn
                     character={character}
                     onUpdate={handleCombatUpdate}
                 />
             </View>
-            <AbilityScores character={character} />
-            <Equipment
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <ClassActions
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <Skills
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <SavingThrows
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <Proficiencies
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <Defenses
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <SpellbookCard
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <NotesCard
-                character={character}
-                onUpdate={handleCombatUpdate}
-            />
-            <CharacterLogCard character={character} />
-        </ScrollView>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'ability-scores',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <AbilityScores
+                    character={character}
+                    onAddBonus={handleAddAbilityBonus}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'equipment',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <Equipment
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'class-actions',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <ClassActions
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'skills',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <Skills
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                    onAddBonus={handleAddSkillBonus}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'saving-throws',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <SavingThrows
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                    onAddBonus={handleAddSavingThrowBonus}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'proficiencies',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <Proficiencies
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'defenses',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <Defenses
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'spellbook',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <SpellbookCard
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'notes',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <NotesCard
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'character-log',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <CharacterLogCard character={character} />
+            </View>
+            {bonusTarget && (
+                <BonusManager
+                    visible
+                    character={character}
+                    stat={bonusTarget.stat}
+                    title={bonusTarget.title}
+                    categories={bonusTarget.categories}
+                    initialCategory={bonusTarget.initialCategory}
+                    onUpdate={handleCombatUpdate}
+                    onClose={() => setBonusTarget(null)}
+                />
+            )}
+        </View>
     );
 }
