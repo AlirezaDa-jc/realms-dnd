@@ -169,6 +169,15 @@ export default function CombatStats({
             <View key={label} style={cardStyle}>
                 <Text style={labelStyle}>{label}</Text>
                 <Text style={valueStyle}>{value}</Text>
+                <Text
+                    style={{
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                        marginTop: 4,
+                    }}
+                >
+                    {getBonusSummary(category)}
+                </Text>
                 <Pressable
                     onPress={() => { }}
                     style={{
@@ -192,15 +201,6 @@ export default function CombatStats({
                         Bonus
                     </Text>
                 </Pressable>
-                <Text
-                    style={{
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                        marginTop: 4,
-                    }}
-                >
-                    {getBonusSummary(category)}
-                </Text>
             </View>
         );
     }

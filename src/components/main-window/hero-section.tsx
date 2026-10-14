@@ -1,6 +1,7 @@
 
 import { useWindowDimensions, View } from 'react-native';
 import CharacterIdentityCard from './character-identity-card';
+import { RecoveryType } from '@/models/resource';
 
 type HeroSectionProps = {
     name: string;
@@ -20,6 +21,7 @@ type HeroSectionProps = {
     onAddTrait: () => void;
     onRemoveTrait: (trait: string) => void;
     onUploadPortrait: () => void;
+    onTakeRest: (restType: RecoveryType) => void | Promise<void>;
 };
 
 export default function HeroSection(props: HeroSectionProps) {

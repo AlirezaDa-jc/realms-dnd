@@ -639,7 +639,7 @@ export class Character {
             this.restoreSpellSlots();
             this.logs = [];
         }
-
+        
         for (const resource of this.resources) {
             if (resource.recoverOn(restType) || restType === 'long_rest') {
                 resource.restore();

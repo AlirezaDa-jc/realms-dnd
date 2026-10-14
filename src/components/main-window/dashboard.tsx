@@ -16,6 +16,16 @@ import { Colors } from '@/constants/theme';
 import { loadActiveCharacter } from '@/database/active-character';
 import { saveCharacter } from '@/database/character-repository';
 import { Character } from '@/models/character';
+import AbilityScores from './ability-scores';
+import ClassActions from './class-actions';
+import Defenses from './defenses';
+import Equipment from './equipment';
+import CharacterLogCard from './logs-card';
+import NotesCard from './notes-card';
+import Proficiencies from './proficiencies';
+import SavingThrows from './saving-throws';
+import Skills from './skills';
+import SpellbookCard from './spell-book';
 
 export default function Dashboard() {
     const colorScheme = useColorScheme();
@@ -169,9 +179,7 @@ export default function Dashboard() {
 
     return (
         <ScrollView>
-            <View style={{
-                paddingBottom: 24,
-            }}>
+            <View>
                 <HeroSection
                     name={character.name}
                     species={character.species}
@@ -182,20 +190,68 @@ export default function Dashboard() {
                     ideals={character.ideals}
                     bonds={character.bonds}
                     flaws={character.flaws}
+                    onTakeRest={async (restType) => {
+                        character.takeRest(restType);
+
+                        await handleCombatUpdate(
+                            Object.assign(
+                                Object.create(Object.getPrototypeOf(character)),
+                                character,
+                            ) as Character,
+                        );
+                    }}
                     onChangeText={handleChangeText}
                     onAddTrait={() => { }}
                     onRemoveTrait={() => { }}
                     onUploadPortrait={() => { }}
                 />
             </View>
-
-            <View style={{ flex: 1, minWidth: 0, gap: 16 }}>
-                <SpellColumn />
-            </View>
             <CombatStats
                 character={character}
                 onUpdate={handleCombatUpdate}
             />
+            <View style={{
+                flex: 1, minWidth: 0, gap: 16, marginTop: 16,
+            }}>
+                <SpellColumn
+                    character={character}
+                    onUpdate={handleCombatUpdate}
+                />
+            </View>
+            <AbilityScores character={character} />
+            <Equipment
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <ClassActions
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <Skills
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <SavingThrows
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <Proficiencies
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <Defenses
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <SpellbookCard
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <NotesCard
+                character={character}
+                onUpdate={handleCombatUpdate}
+            />
+            <CharacterLogCard character={character} />
         </ScrollView>
     );
 }

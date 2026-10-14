@@ -1,9 +1,9 @@
-import { Image, useWindowDimensions } from 'react-native';
 import { Colors } from '@/constants/theme';
+import { RecoveryType } from '@/models/resource';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Pressable,
+    Alert, Image, Pressable,
     Text,
     TextInput,
     useColorScheme,
@@ -25,6 +25,7 @@ type CharacterIdentityCardProps = {
     onRemoveTrait: (trait: string) => void;
     portraitUri?: string | null;
     onUploadPortrait: () => void;
+    onTakeRest: (restType: RecoveryType) => void | Promise<void>;
     horizontal?: boolean;
 };
 
@@ -43,6 +44,7 @@ export default function CharacterIdentityCard({
     onRemoveTrait,
     portraitUri,
     onUploadPortrait,
+    onTakeRest,
     horizontal = true,
 }: CharacterIdentityCardProps) {
     const scheme = useColorScheme();
@@ -419,6 +421,140 @@ export default function CharacterIdentityCard({
                     flaws,
                     'What weaknesses does your character have?',
                 )}
+                <View
+                    style={{
+                        height: 1,
+                        backgroundColor: colors.border,
+                    }}
+                />
+
+                <View style={{ gap: 12 }}>
+                    <View style={{ gap: 4 }}>
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontSize: 14,
+                                fontWeight: '800',
+                                letterSpacing: 1,
+                            }}
+                        >
+                            TAKE A REST
+                        </Text>
+
+                        <Text
+                            style={{
+                                color: colors.textSecondary,
+                                fontSize: 12,
+                                lineHeight: 18,
+                            }}
+                        >
+                            Recover and prepare for your next adventure.
+                        </Text>
+                    </View>
+
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            gap: 10,
+                        }}
+                    >
+                        <Pressable
+                            onPress={() => onTakeRest('short_rest')}
+                            style={{
+                                flex: 1,
+                                minWidth: 0,
+                                paddingVertical: 13,
+                                paddingHorizontal: 10,
+                                borderRadius: 11,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                backgroundColor:
+                                    scheme === 'dark'
+                                        ? 'rgba(214,173,96,0.10)'
+                                        : 'rgba(139,100,44,0.07)',
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                            }}
+                        >
+                            <Text style={{ fontSize: 20 }}>☕</Text>
+
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontSize: 13,
+                                    fontWeight: '700',
+                                }}
+                            >
+                                Short Rest
+                            </Text>
+
+                            <Text
+                                style={{
+                                    color: colors.textSecondary,
+                                    fontSize: 11,
+                                }}
+                            >
+                                1 hour
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={() =>
+                                Alert.alert(
+                                    'Take a Long Rest?',
+                                    'This will restore your character according to the current rest rules. Your existing character log will also be cleared.',
+                                    [
+                                        {
+                                            text: 'Cancel',
+                                            style: 'cancel',
+                                        },
+                                        {
+                                            text: 'Long Rest',
+                                            onPress: () => {
+                                                void onTakeRest('long_rest');
+                                            },
+                                        },
+                                    ],
+                                )
+                            }
+                            style={{
+                                flex: 1,
+                                minWidth: 0,
+                                paddingVertical: 13,
+                                paddingHorizontal: 10,
+                                borderRadius: 11,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                backgroundColor: colors.backgroundSelected,
+                                borderWidth: 1,
+                                borderColor: colors.accent,
+                            }}
+                        >
+                            <Text style={{ fontSize: 20 }}>🌙</Text>
+
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontSize: 13,
+                                    fontWeight: '700',
+                                }}
+                            >
+                                Long Rest
+                            </Text>
+
+                            <Text
+                                style={{
+                                    color: colors.textSecondary,
+                                    fontSize: 11,
+                                }}
+                            >
+                                8 hours
+                            </Text>
+                        </Pressable>
+                    </View>
+                </View>
             </View>
         </BlurView>
     );
