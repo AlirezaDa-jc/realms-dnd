@@ -468,6 +468,7 @@ export default function ClassActions({
                                         flexDirection: 'row',
                                         gap: 8,
                                         flexWrap: 'wrap',
+                                        justifyContent: 'flex-end',
                                     }}
                                 >
                                     <Pressable

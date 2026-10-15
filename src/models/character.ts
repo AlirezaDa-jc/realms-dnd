@@ -44,6 +44,7 @@ type RequiredCharacterFields =
     | 'name'
     | 'species'
     | 'characterClass'
+    | 'subClass'
     | 'level'
     | 'background'
     | 'abilities'
@@ -67,6 +68,7 @@ export class Character {
     name: string;
     species: string;
     characterClass: string;
+    subClass: string;
     level: number;
     background: string;
 
@@ -133,6 +135,7 @@ export class Character {
         this.name = data.name;
         this.species = data.species;
         this.characterClass = data.characterClass;
+        this.subClass = data.subClass;
         this.level = data.level;
         this.background = data.background;
         this.abilities = { ...data.abilities };
@@ -141,7 +144,7 @@ export class Character {
         this.speed = data.speed;
 
         // Armor: not supplied by the form
-        this.baseArmorClass = data.baseArmorClass ?? 0;
+        this.baseArmorClass = data.baseArmorClass ?? 10;
         this.armorProficiencies = [...(data.armorProficiencies ?? [])];
         this.armorUsesDexModifier = data.armorUsesDexModifier ?? false;
         this.armorDexModifierHasLimit =
@@ -165,8 +168,11 @@ export class Character {
             ...data.skillProficiencies,
         } as Record<Skill, ProficiencyLevel>;
 
-        // No spellcasting ability until configured
-        this.spellcastingAbility = data.spellcastingAbility ?? null;
+        // spellcasting ability
+        this.spellcastingAbility =
+            data.spellcastingAbility ??
+            DEFAULT_SPELLCASTING_ABILITIES[this.characterClass] ??
+            null;
 
         // Defenses
         this.damageResistances = [...(data.damageResistances ?? [])];
@@ -265,9 +271,11 @@ export class Character {
     }
 
     get spellAttackBonus(): number {
-        return calculateSpellAttackBonus(
-            this.spellcastingScore(),
-            this.proficiencyBonus,
+        return (
+            calculateSpellAttackBonus(
+                this.spellcastingScore(),
+                this.proficiencyBonus,
+            ) + this.totalStatBonus('spell_attack_bonus')
         );
     }
 
@@ -280,14 +288,14 @@ export class Character {
         );
     }
 
-    get spellcastingModifier(): number {
+    get spellCastingModifier(): number {
         if (this.spellcastingAbility === null) {
             throw new Error(
                 'This character has no spellcasting ability configured.',
             );
         }
 
-        return this.abilityModifier(this.spellcastingAbility);
+        return this.abilityModifier(this.spellcastingAbility) + this.totalStatBonus('spell_casting_modifier');
     }
 
     get totalSpeed(): number {
@@ -639,7 +647,7 @@ export class Character {
             this.restoreSpellSlots();
             this.logs = [];
         }
-        
+
         for (const resource of this.resources) {
             if (resource.recoverOn(restType) || restType === 'long_rest') {
                 resource.restore();

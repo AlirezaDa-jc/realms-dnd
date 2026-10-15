@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { Pressable, Text, useColorScheme, View } from 'react-native';
+import { Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
 
 export const DASHBOARD_SECTIONS = [
     { id: 'overview', label: 'Overview' },
@@ -34,19 +34,25 @@ export default function Sidebar({
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
     return (
-        <View
-            style={{
+
+        <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
                 width: 220,
                 padding: 20,
                 gap: 24,
             }}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
         >
+
             <Text
                 style={{
                     color: colors.accent,
                     fontSize: 25,
                     fontWeight: '800',
                     letterSpacing: 2,
+                    marginTop: 30
                 }}
             >
                 REALMS
@@ -84,6 +90,6 @@ export default function Sidebar({
                     );
                 })}
             </View>
-        </View>
+        </ScrollView>
     );
 }

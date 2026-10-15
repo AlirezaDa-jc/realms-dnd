@@ -288,7 +288,7 @@ export default function Dashboard({
             const updatedCharacter = Object.assign(
                 Object.create(Object.getPrototypeOf(character)),
                 character,
-                { portraitUri: uri },
+                { portraitPath: uri },
             ) as Character;
 
             setCharacter(updatedCharacter);
@@ -407,6 +407,7 @@ export default function Dashboard({
                         name={character.name}
                         species={character.species}
                         characterClass={character.characterClass}
+                        subClass={character.subClass}
                         level={character.level}
                         background={character.background}
                         traits={character.traits}
@@ -425,6 +426,7 @@ export default function Dashboard({
                                 ) as Character,
                             );
                         }}
+                        portraitPath={character.portraitPath}
                         onChangeText={handleChangeText}
                         onAddTrait={handleAddTrait}
                         onRemoveTrait={handleRemoveTrait}

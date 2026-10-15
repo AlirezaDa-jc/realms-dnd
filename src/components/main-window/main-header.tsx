@@ -9,7 +9,7 @@ export default function MainHeader() {
     return (
         <View
             style={{
-                minHeight: 76,
+                minHeight: 50,
                 paddingHorizontal: 12,
                 marginTop: 20,
                 flexDirection: 'row',
@@ -22,7 +22,7 @@ export default function MainHeader() {
                     numberOfLines={1}
                     style={{
                         color: colors.text,
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: '700',
                     }}
                 >

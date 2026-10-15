@@ -38,6 +38,8 @@ export const COMBAT_STATS = [
   'initiative',
   'speed',
   'spell_save_dc',
+  'spell_attack_bonus',
+  'spell_casting_modifier',
 ] as const;
 
 export type CombatStat = (typeof COMBAT_STATS)[number];

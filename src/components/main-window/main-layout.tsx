@@ -70,13 +70,14 @@ export default function MainLayout() {
                     borderBottomWidth: 1,
                     borderBottomColor: colors.border,
                     gap: 0,
+                    marginTop: 18,
                 }}
             >
                 <Pressable
                     onPress={() => setSidebarOpen((open) => !open)}
                     accessibilityRole="button"
                     accessibilityLabel="Toggle sidebar"
-                    style={{ padding: 24 }}
+                    style={{ paddingHorizontal: 12 }}
                 >
                     <Text
                         style={{
@@ -131,7 +132,7 @@ export default function MainLayout() {
 
                     {/* Sidebar overlay */}
                     <BlurView
-                        intensity={80}
+                        intensity={90}
                         tint={scheme === 'dark' ? 'dark' : 'light'}
                         style={{
                             position: 'absolute',

@@ -149,64 +149,80 @@ export default function SavingThrows({
                         <View
                             key={ability}
                             style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                                paddingVertical: 5,
+                                paddingVertical: 8,
                                 borderBottomWidth: 1,
                                 borderBottomColor: colors.border,
-                            }}
-                        >
-                            <Text
+                                flexDirection: 'column',
+                                gap: 16,
+                            }}>
+                            <View
                                 style={{
-                                    ...styles.text,
-                                    flex: 1,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: 8,
                                 }}
                             >
-                                {name}
-                            </Text>
+                                {/* Column 1: Name */}
+                                <Text
+                                    style={{
+                                        ...styles.text,
+                                        flex: 1,
+                                    }}
+                                >
+                                    {name}
+                                </Text>
 
-                            <Text
-                                numberOfLines={1}
+                                {/* Column 2: Proficiency */}
+                                <Text
+                                    style={{
+                                        ...styles.secondary,
+                                        width: 100,
+                                        textAlign: 'left',
+                                    }}
+                                >
+                                    {getProficiencyLabel(proficiency)}
+                                </Text>
+
+                                {/* Column 3: Bonus */}
+                                <Text
+                                    style={{
+                                        ...styles.text,
+                                        width: 32,
+                                        textAlign: 'right',
+                                        fontVariant: ['tabular-nums'],
+                                    }}
+                                >
+                                    {bonus >= 0 ? `+${bonus}` : bonus}
+                                </Text>
+                            </View>
+                            <View
                                 style={{
-                                    ...styles.secondary,
-                                    minWidth: 65,
-                                    textAlign: 'center',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 8,
                                 }}
                             >
-                                {getProficiencyLabel(proficiency)}
-                            </Text>
 
-                            <Pressable
-                                onPress={() => openProficiencyModal(ability)}
-                                style={styles.button}
-                            >
-                                <Text style={styles.buttonText}>Edit</Text>
-                            </Pressable>
-
-                            <Text
-                                style={{
-                                    ...styles.text,
-                                    width: 32,
-                                    textAlign: 'right',
-                                    fontVariant: ['tabular-nums'],
-                                }}
-                            >
-                                {bonus >= 0 ? `+${bonus}` : bonus}
-                            </Text>
-
-                            <Pressable
-                                onPress={() =>
-                                    onAddBonus?.(ability, 'saving_throw')
-                                }
-                                style={[
-                                    styles.button,
-                                    !onAddBonus && { opacity: 0.5 },
-                                ]}
-                                disabled={!onAddBonus}
-                            >
-                                <Text style={styles.buttonText}>Bonus</Text>
-                            </Pressable>
+                                <Pressable
+                                    onPress={() => openProficiencyModal(ability)}
+                                    style={styles.button}
+                                >
+                                    <Text style={styles.buttonText}>Edit Proficiency</Text>
+                                </Pressable>
+                                <Pressable
+                                    onPress={() =>
+                                        onAddBonus?.(ability, 'saving_throw')
+                                    }
+                                    style={[
+                                        styles.button,
+                                        !onAddBonus && { opacity: 0.5 },
+                                    ]}
+                                    disabled={!onAddBonus}
+                                >
+                                    <Text style={styles.buttonText}>Bonus</Text>
+                                </Pressable>
+                            </View>
                         </View>
                     );
                 })}
@@ -364,6 +380,6 @@ export default function SavingThrows({
                     </View>
                 </View>
             </Modal>
-        </BlurView>
+        </BlurView >
     );
 }

@@ -28,6 +28,7 @@ export type CharacterFormValues = {
     name: string;
     species: string;
     characterClass: string;
+    subClass: string;
     level: string;
     background: string;
     abilities: AbilityScores;
@@ -56,6 +57,7 @@ const EMPTY_VALUES: CharacterFormValues = {
     name: '',
     species: '',
     characterClass: '',
+    subClass: '',
     level: '1',
     background: '',
     abilities: EMPTY_ABILITIES,
@@ -327,6 +329,17 @@ export default function CharacterForm({
                         </Text>
                         <Text style={{ color: colors.textSecondary }}>⌄</Text>
                     </Pressable>
+                </Field>
+                <Field label="Subclass" colors={colors}>
+                    <TextInput
+                        value={values.subClass}
+                        onChangeText={(value) => updateField('subClass', value)}
+                        placeholder="Enter Subclass"
+                        placeholderTextColor={colors.textSecondary}
+                        style={inputStyle}
+                        maxLength={100}
+                        returnKeyType="next"
+                    />
                 </Field>
 
                 <Field label="Level" colors={colors}>

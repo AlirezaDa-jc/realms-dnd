@@ -17,6 +17,7 @@ export default function CreateCharacterScreen() {
                 name: values.name,
                 species: values.species,
                 characterClass: values.characterClass,
+                subClass: values.subClass,
                 level: Number(values.level),
                 background: values.background,
                 abilities: {

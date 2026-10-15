@@ -138,6 +138,7 @@ export default function Skills({
     }
 
     function getProficiencyLabel(level: number): string {
+        if (level === 0) return 'None';
         if (level === 1) return 'Proficient';
         if (level === 2) return 'Expertise';
         return '';
@@ -170,68 +171,83 @@ export default function Skills({
                         <View
                             key={skill}
                             style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                                paddingVertical: 5,
+                                paddingVertical: 8,
                                 borderBottomWidth: 1,
                                 borderBottomColor: colors.border,
+                                flexDirection: 'column',
+                                gap: 16,
                             }}
                         >
-                            <Text
+                            <View
                                 style={{
-                                    ...styles.text,
-                                    flex: 1,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 8,
                                 }}
                             >
-                                {displayName}
-                            </Text>
+                                <Text
+                                    style={{
+                                        ...styles.text,
+                                        flex: 1,
+                                    }}
+                                >
+                                    {displayName}
+                                </Text>
 
-                            <Text
-                                numberOfLines={1}
+                                <Text
+                                    numberOfLines={1}
+                                    style={{
+                                        ...styles.secondary,
+                                        width: 100,
+                                        textAlign: 'left',
+                                    }}
+                                >
+                                    {getProficiencyLabel(proficiency)}
+                                </Text>
+                                <Text
+                                    style={{
+                                        ...styles.text,
+                                        width: 32,
+                                        textAlign: 'right',
+                                        fontVariant: ['tabular-nums'],
+                                    }}
+                                >
+                                    {bonus >= 0 ? `+${bonus}` : bonus}
+                                </Text>
+                            </View>
+                            <View
                                 style={{
-                                    ...styles.secondary,
-                                    minWidth: 65,
-                                    textAlign: 'center',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 8,
                                 }}
                             >
-                                {getProficiencyLabel(proficiency)}
-                            </Text>
 
-                            <Pressable
-                                onPress={() =>
-                                    openProficiencyModal(skill)
-                                }
-                                style={styles.button}
-                            >
-                                <Text style={styles.buttonText}>Edit</Text>
-                            </Pressable>
-
-                            <Text
-                                style={{
-                                    ...styles.text,
-                                    width: 32,
-                                    textAlign: 'right',
-                                    fontVariant: ['tabular-nums'],
-                                }}
-                            >
-                                {bonus >= 0 ? `+${bonus}` : bonus}
-                            </Text>
-
-                            <Pressable
-                                onPress={() =>
-                                    onAddBonus?.(skill, displayName)
-                                }
-                                style={[
-                                    styles.button,
-                                    !onAddBonus && {
-                                        opacity: 0.5,
-                                    },
-                                ]}
-                                disabled={!onAddBonus}
-                            >
-                                <Text style={styles.buttonText}>Bonus</Text>
-                            </Pressable>
+                                <Pressable
+                                    onPress={() =>
+                                        openProficiencyModal(skill)
+                                    }
+                                    style={styles.button}
+                                >
+                                    <Text style={styles.buttonText}>Edit Proficiency</Text>
+                                </Pressable>
+                                <Pressable
+                                    onPress={() =>
+                                        onAddBonus?.(skill, displayName)
+                                    }
+                                    style={[
+                                        styles.button,
+                                        !onAddBonus && {
+                                            opacity: 0.5,
+                                        },
+                                    ]}
+                                    disabled={!onAddBonus}
+                                >
+                                    <Text style={styles.buttonText}>Bonus</Text>
+                                </Pressable>
+                            </View>
                         </View>
                     );
                 })}

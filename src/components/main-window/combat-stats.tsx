@@ -151,7 +151,7 @@ export default function CombatStats({
                 <Text
                     style={{
                         color: colors.text,
-                        fontSize: 8,
+                        fontSize: 14,
                         fontWeight: '700',
                     }}
                     numberOfLines={1}
@@ -242,7 +242,7 @@ export default function CombatStats({
                     COMBAT STATISTICS
                 </Text>
 
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
                     <View style={cardStyle}>
                         <Text style={labelStyle}>HIT POINTS</Text>
                         <Text style={valueStyle}>
@@ -259,14 +259,16 @@ export default function CombatStats({
                         <Text style={valueStyle}>
                             {character.temporaryHp}
                         </Text>
-                        {renderButton(
-                            'Set Temp HP',
-                            () => openAction('temporary'),
-                            true,
-                        )}
+                        <View>
+                            {renderButton(
+                                'Set Temp HP',
+                                () => openAction('temporary'),
+                                true,
+
+                            )}
+                        </View>
                     </View>
                 </View>
-
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                     {renderStat('ARMOR CLASS', String(character.armorClass), "armor_class")}
                     {renderStat(
@@ -281,6 +283,20 @@ export default function CombatStats({
                             ? String(character.spellSaveDc)
                             : '—',
                         "spell_save_dc"
+                    )}
+                    {renderStat(
+                        'SPELL ATTACK BONUS',
+                        character.spellAttackBonus !== null
+                            ? String(character.spellAttackBonus)
+                            : '—',
+                        'spell_attack_bonus',
+                    )}
+                    {renderStat(
+                        'SPELL CASTING MODIFIER',
+                        character.spellCastingModifier !== null
+                            ? String(character.spellCastingModifier)
+                            : '—',
+                        'spell_casting_modifier',
                     )}
                 </View>
 

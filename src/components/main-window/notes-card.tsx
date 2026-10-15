@@ -20,8 +20,8 @@ export default function NotesCard({
     character,
     onUpdate,
 }: NotesCardProps) {
-    const scheme = useColorScheme() ?? 'light';
-    const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+    const scheme = useColorScheme();
+    const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
     const [notes, setNotes] = useState(character.notes);
     const [saving, setSaving] = useState(false);
@@ -46,7 +46,6 @@ export default function NotesCard({
 
             await onUpdate(updatedCharacter);
 
-            Alert.alert('Notes saved', 'Your character notes have been saved.');
         } catch (error) {
             Alert.alert(
                 'Save failed',

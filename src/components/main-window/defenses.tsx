@@ -59,7 +59,6 @@ export default function Defenses({
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedAttribute, setSelectedAttribute] =
         useState<DefenseAttribute>('damageResistances');
-    const [draftItems, setDraftItems] = useState<string[]>([]);
     const [newItem, setNewItem] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -108,67 +107,69 @@ export default function Defenses({
 
     function openModal() {
         setSelectedAttribute('damageResistances');
-        setDraftItems([...character.damageResistances]);
         setNewItem('');
         setModalVisible(true);
     }
 
     function selectCategory(attribute: DefenseAttribute) {
         setSelectedAttribute(attribute);
-        setDraftItems([...character[attribute]]);
         setNewItem('');
     }
 
-    function addDefense() {
-        const value = newItem.trim();
+async function addDefense() {
+    const value = newItem.trim();
 
-        if (!value) return;
+    if (!value || saving) return;
 
-        const alreadyExists = draftItems.some(
-            (item) => item.toLocaleLowerCase() === value.toLocaleLowerCase(),
+    const currentItems = character[selectedAttribute];
+
+    const alreadyExists = currentItems.some(
+        (item) => item.toLocaleLowerCase() === value.toLocaleLowerCase(),
+    );
+
+    if (alreadyExists) {
+        Alert.alert('Already Exists', 'This defense already exists.');
+        return;
+    }
+
+    setNewItem('');
+    await updateDefenses([...currentItems, value]);
+}
+
+async function removeDefense(index: number) {
+    if (saving) return;
+
+    const updatedItems = character[selectedAttribute].filter(
+        (_, i) => i !== index,
+    );
+
+    await updateDefenses(updatedItems);
+}
+
+    async function updateDefenses(values: string[]) {
+    if (saving) return;
+
+    const updatedCharacter = Object.assign(
+        Object.create(Object.getPrototypeOf(character)),
+        character,
+        {
+            [selectedAttribute]: values,
+        },
+    ) as Character;
+
+    setSaving(true);
+
+    try {
+        await onUpdate(updatedCharacter);
+    } catch (error) {
+        Alert.alert(
+            'Save failed',
+            error instanceof Error
+                ? error.message
+                : 'Could not save defenses.',
         );
-
-        if (alreadyExists) {
-            Alert.alert(
-                'Already Exists',
-                'This defense already exists.',
-            );
-            return;
-        }
-
-        setDraftItems((items) => [...items, value]);
-        setNewItem('');
-    }
-
-    function removeDefense(index: number) {
-        setDraftItems((items) => items.filter((_, i) => i !== index));
-    }
-
-    async function saveDefenses() {
-        if (saving) return;
-
-        const updatedCharacter = Object.assign(
-            Object.create(Object.getPrototypeOf(character)),
-            character,
-            {
-                [selectedAttribute]: [...draftItems],
-            },
-        ) as Character;
-
-        setSaving(true);
-
-        try {
-            await onUpdate(updatedCharacter);
-            setModalVisible(false);
-        } catch (error) {
-            Alert.alert(
-                'Save failed',
-                error instanceof Error
-                    ? error.message
-                    : 'Could not save defenses.',
-            );
-        } finally {
-            setSaving(false);
+    } finally {
+        setSaving(false);
         }
     }
 
@@ -319,12 +320,12 @@ export default function Defenses({
                             contentContainerStyle={{ gap: 8 }}
                             keyboardShouldPersistTaps="handled"
                         >
-                            {draftItems.length === 0 ? (
+                            {character[selectedAttribute].length === 0 ? (
                                 <Text style={styles.secondary}>
                                     No defenses added.
                                 </Text>
                             ) : (
-                                draftItems.map((item, index) => (
+                                character[selectedAttribute].map((item, index) => (
                                     <View
                                         key={`${item} -${index} `}
                                         style={{
@@ -393,6 +394,7 @@ export default function Defenses({
                                 <TextInput
                                     value={newItem}
                                     onChangeText={setNewItem}
+                                    numberOfLines={1}
                                     placeholder="Enter damage type or condition..."
                                     placeholderTextColor={
                                         colors.textSecondary
@@ -406,20 +408,6 @@ export default function Defenses({
                                     onSubmitEditing={addDefense}
                                 />
 
-                                <Pressable
-                                    onPress={addDefense}
-                                    disabled={saving || !newItem.trim()}
-                                    style={[
-                                        styles.button,
-                                        (!newItem.trim() || saving) && {
-                                            opacity: 0.5,
-                                        },
-                                    ]}
-                                >
-                                    <Text style={styles.buttonText}>
-                                        + Add
-                                    </Text>
-                                </Pressable>
                             </View>
                         </View>
 
@@ -450,17 +438,18 @@ export default function Defenses({
                                     Cancel
                                 </Text>
                             </Pressable>
-
                             <Pressable
-                                onPress={saveDefenses}
-                                disabled={saving}
+                                onPress={addDefense}
+                                disabled={saving || !newItem.trim()}
                                 style={[
                                     styles.button,
-                                    saving && { opacity: 0.5 },
+                                    (!newItem.trim() || saving) && {
+                                        opacity: 0.5,
+                                    },
                                 ]}
                             >
                                 <Text style={styles.buttonText}>
-                                    {saving ? 'Saving...' : 'Save'}
+                                    + Add
                                 </Text>
                             </Pressable>
                         </View>

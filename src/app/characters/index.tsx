@@ -10,7 +10,8 @@ import {
 import { characterFromJSON, characterToJSON } from '@/database/character-serializer';
 import type { Character } from '@/models/character';
 import { BlurView } from 'expo-blur';
-import * as DocumentPicker from 'expo-document-picker';
+import * as Crypto from 'expo-crypto';
+import { File } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -80,6 +81,25 @@ export default function CharactersScreen() {
         }, [refreshCharacters]),
     );
 
+    async function getPortraitData(portraitPath: string | null | undefined) {
+        if (!portraitPath) return null;
+
+        const info = await FileSystem.getInfoAsync(portraitPath);
+
+        if (!info.exists || info.isDirectory) {
+            throw new Error('The character portrait file could not be found.');
+        }
+
+        const base64 = await FileSystem.readAsStringAsync(portraitPath, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+
+        const extension = portraitPath.match(/\.(png|webp|jpg|jpeg)$/i)?.[1]
+            ?.toLowerCase() ?? 'jpg';
+
+        return { base64, extension };
+    }
+
     async function exportCharacter(entry: CharacterEntry) {
         try {
             const available = await Sharing.isAvailableAsync();
@@ -92,12 +112,26 @@ export default function CharactersScreen() {
                 return;
             }
 
-            const json = characterToJSON(entry.character);
+            const exportData = JSON.parse(
+                characterToJSON(entry.character),
+            );
+
+            const portraitData = await getPortraitData(
+                entry.character.portraitPath,
+            );
+
+            // Embed the image; never export the original device path.
+            exportData.portraitData = portraitData;
+            exportData.portraitPath = '';
+
+            const json = JSON.stringify(exportData, null, 2);
+
             const safeName = (entry.character.name || 'character')
                 .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
                 .trim();
 
-            const fileUri = `${FileSystem.cacheDirectory}${safeName || 'character'}.json`;
+            const fileUri =
+                `${FileSystem.cacheDirectory}${safeName || 'character'}.json`;
 
             await FileSystem.writeAsStringAsync(fileUri, json, {
                 encoding: FileSystem.EncodingType.UTF8,
@@ -105,13 +139,15 @@ export default function CharactersScreen() {
 
             await Sharing.shareAsync(fileUri, {
                 mimeType: 'application/json',
-                dialogTitle: `Export ${entry.character.name || 'Character'} `,
+                dialogTitle: `Export ${entry.character.name || 'Character'}`,
                 UTI: 'public.json',
             });
         } catch (err) {
             Alert.alert(
                 'Export failed',
-                err instanceof Error ? err.message : 'Could not export character.',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not export character.',
             );
         }
     }
@@ -122,35 +158,67 @@ export default function CharactersScreen() {
         setBusy(true);
 
         try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: ['application/json', 'text/json', 'text/plain'],
-                copyToCacheDirectory: true,
-                multiple: false,
+
+
+            const result = await File.pickFileAsync({
+                mimeTypes: ['application/json', 'text/json'],
             });
 
-            if (result.canceled || !result.assets?.length) {
-                return;
-            }
+            if (result.canceled) return;
 
-            const file = result.assets[0];
-            const json = await FileSystem.readAsStringAsync(file.uri, {
-                encoding: FileSystem.EncodingType.UTF8,
-            });
+            const file = result.result;
+            const json = await file.text();
+            const data = JSON.parse(json);
+            const portraitData = data.portraitData;
 
-            const imported = characterFromJSON(json);
+            delete data.portraitData;
+
+            // Old exports may contain a path belonging to another device.
+            data.portraitPath = '';
+
+            const imported = characterFromJSON(JSON.stringify(data));
 
             if (!imported || typeof imported !== 'object') {
-                throw new Error('The selected file does not contain a valid character.');
+                throw new Error(
+                    'The selected file does not contain a valid character.',
+                );
             }
 
             if (!imported.name?.trim()) {
                 throw new Error('The imported character has no name.');
             }
 
-            // Every import creates a separate character, even if its original ID
-            // already exists in the database.
-            const id = crypto.randomUUID();
+            const id = Crypto.randomUUID();
             imported.id = id;
+
+            if (portraitData?.base64) {
+                const portraitsDirectory =
+                    `${FileSystem.documentDirectory}portraits/`;
+
+                await FileSystem.makeDirectoryAsync(portraitsDirectory, {
+                    intermediates: true,
+                });
+
+                const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+                const extension = allowedExtensions.includes(
+                    portraitData.extension?.toLowerCase(),
+                )
+                    ? portraitData.extension.toLowerCase()
+                    : 'jpg';
+
+                const portraitUri =
+                    `${portraitsDirectory}${id}.${extension}`;
+
+                await FileSystem.writeAsStringAsync(
+                    portraitUri,
+                    portraitData.base64,
+                    {
+                        encoding: FileSystem.EncodingType.Base64,
+                    },
+                );
+
+                imported.portraitPath = portraitUri;
+            }
 
             await saveCharacter(imported, id);
             await refreshCharacters();
@@ -160,6 +228,7 @@ export default function CharactersScreen() {
                 `${imported.name} was imported successfully.`,
             );
         } catch (err) {
+            console.error(err)
             Alert.alert(
                 'Import failed',
                 err instanceof Error
@@ -170,7 +239,6 @@ export default function CharactersScreen() {
             setBusy(false);
         }
     }
-
     function confirmDelete(entry: CharacterEntry) {
         Alert.alert(
             'Delete character',
@@ -481,6 +549,8 @@ export default function CharactersScreen() {
                                         Edit
                                     </Text>
                                 </Pressable>
+                            </View>
+                            <View style={styles.cardActions}>
 
                                 <Pressable
                                     onPress={() => void duplicateCharacterEntry(entry)}

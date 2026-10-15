@@ -19,6 +19,7 @@ type HeroSectionProps = {
     name: string;
     species: string;
     characterClass: string;
+    subClass: string;
     level: number;
     background: string;
     traits: string[];
@@ -28,7 +29,7 @@ type HeroSectionProps = {
     onChangeText: (field: 'ideals' | 'bonds' | 'flaws', value: string) => void;
     onAddTrait: (trait: string) => void;
     onRemoveTrait: (trait: string) => void;
-    portraitUri?: string | null;
+    portraitPath?: string | null;
     onUploadPortrait: (uri: string) => void | Promise<void>;
     onTakeRest: (restType: RecoveryType) => void | Promise<void>;
     horizontal?: boolean;
@@ -38,6 +39,7 @@ export default function HeroSection({
     name,
     species,
     characterClass,
+    subClass,
     level,
     background,
     traits,
@@ -47,7 +49,7 @@ export default function HeroSection({
     onChangeText,
     onAddTrait,
     onRemoveTrait,
-    portraitUri,
+    portraitPath,
     onUploadPortrait,
     onTakeRest,
     horizontal = true,
@@ -188,7 +190,7 @@ export default function HeroSection({
                             <View
                                 style={{
                                     width: '100%',
-                                    aspectRatio: 3 / 4,
+                                    aspectRatio: 3 / 7,
                                     borderRadius: 12,
                                     overflow: 'hidden',
                                     backgroundColor:
@@ -199,9 +201,9 @@ export default function HeroSection({
                                     justifyContent: 'center',
                                 }}
                             >
-                                {portraitUri ? (
+                                {portraitPath ? (
                                     <Image
-                                        source={{ uri: portraitUri }}
+                                        source={{ uri: portraitPath }}
                                         resizeMode="cover"
                                         style={{ width: '100%', height: '100%' }}
                                     />
@@ -268,15 +270,32 @@ export default function HeroSection({
                                     }}
                                 >
                                     {species || 'Unknown Species'}
-                                    {'  ·  '}
+                                </Text>
+
+                                <Text
+                                    style={{
+                                        color: colors.textSecondary,
+                                        fontSize: 14,
+                                    }}
+                                >
                                     {characterClass || 'Unknown Class'}
                                 </Text>
+
+                                {subClass && <Text
+                                    style={{
+                                        color: colors.textSecondary,
+                                        fontSize: 14,
+                                    }}
+                                >
+                                    {subClass}
+                                </Text>}
                             </View>
 
                             <View
                                 style={{
-                                    flexDirection: 'row',
+                                    flexDirection: 'column',
                                     gap: 12,
+                                    marginTop: 18
                                 }}
                             >
                                 <View
