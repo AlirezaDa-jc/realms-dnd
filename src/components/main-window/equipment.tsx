@@ -23,12 +23,14 @@ type EquipmentForm = {
     name: string;
     quantity: string;
     weight: string;
+    value: string;
 };
 
 const EMPTY_FORM: EquipmentForm = {
     name: '',
     quantity: '1',
     weight: '0',
+    value: '0',
 };
 
 export default function Equipment({
@@ -63,6 +65,7 @@ export default function Equipment({
             name: item.name,
             quantity: String(item.quantity),
             weight: String(item.weight),
+            value: item.value,
         });
         setModalVisible(true);
     };
@@ -71,16 +74,17 @@ export default function Equipment({
         const name = form.name.trim();
         const quantity = Number(form.quantity);
         const weight = Number(form.weight);
+        const value = form.value.trim();
 
         if (!name) {
             Alert.alert('Invalid equipment', 'Enter an equipment name.');
             return;
         }
 
-        if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+        if (!Number.isInteger(quantity) || quantity < 1) {
             Alert.alert(
                 'Invalid quantity',
-                'Quantity must be an integer between 1 and 999.',
+                'Quantity must be an integer more than 1.',
             );
             return;
         }
@@ -104,11 +108,11 @@ export default function Equipment({
 
             if (editingIndex === null) {
                 updatedCharacter.equipment.push(
-                    new EquipmentItem(name, quantity, weight),
+                    new EquipmentItem(name, quantity, weight, value),
                 );
             } else {
                 updatedCharacter.equipment[editingIndex] =
-                    new EquipmentItem(name, quantity, weight);
+                    new EquipmentItem(name, quantity, weight, value);
             }
 
             await onUpdate(updatedCharacter);
@@ -277,6 +281,16 @@ export default function Equipment({
                             Total: {item.quantity * item.weight} lb
                         </Text>
 
+                        <Text
+                            style={{
+                                color: colors.textSecondary,
+                                fontSize: 12,
+                                lineHeight: 18,
+                            }}
+                        >
+                            Value: {item.value}
+                        </Text>
+
                         <View
                             style={{
                                 flexDirection: 'row',
@@ -404,6 +418,27 @@ export default function Equipment({
                                     updateForm('weight', value)
                                 }
                                 keyboardType="decimal-pad"
+                                style={{
+                                    color: colors.text,
+                                    backgroundColor: cardBackground,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    borderRadius: 8,
+                                    padding: 12,
+                                }}
+                            />
+                        </View>
+
+                        <View style={{ gap: 6 }}>
+                            <Text style={{ color: colors.textSecondary }}>
+                                Value
+                            </Text>
+                            <TextInput
+                                value={form.value}
+                                onChangeText={(value) => updateForm('value', value)}
+                                placeholder="e.g. 1 GP"
+                                placeholderTextColor={colors.textSecondary}
+                                autoCapitalize="sentences"
                                 style={{
                                     color: colors.text,
                                     backgroundColor: cardBackground,

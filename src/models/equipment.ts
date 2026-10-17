@@ -3,15 +3,18 @@ export class EquipmentItem {
   name: string;
   quantity: number;
   weight: number;
+  value: string;
 
   constructor(
     name: string,
     quantity = 1,
     weight = 0,
+    value = "0",
   ) {
     this.name = name.trim();
     this.quantity = quantity;
     this.weight = weight;
+    this.value = value;
 
     this.validate();
   }
@@ -28,5 +31,6 @@ export class EquipmentItem {
     if (this.weight < 0) {
       throw new Error('Weight cannot be negative.');
     }
+
   }
 }
