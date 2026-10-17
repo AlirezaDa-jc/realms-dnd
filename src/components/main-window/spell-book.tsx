@@ -3,6 +3,7 @@ import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { Spell } from '@/models/spell';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import {
     Alert,
@@ -75,6 +76,7 @@ export default function SpellbookCard({
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
     const [addVisible, setAddVisible] = useState(false);
+    const [editingSpell, setEditingSpell] = useState<Spell | null>(null);
     const [prepareVisible, setPrepareVisible] = useState(false);
     const [castSpell, setCastSpell] = useState<Spell | null>(null);
     const [castingLevel, setCastingLevel] = useState<number | null>(null);
@@ -107,6 +109,24 @@ export default function SpellbookCard({
             .sort((a, b) => a - b);
     }, [character.spellSlots, castSpell]);
 
+    const openEditSpell = (spell: Spell) => {
+        setEditingSpell(spell);
+        setForm({
+            name: spell.name,
+            sourceClass: spell.sourceClass ?? characterClasses[0] ?? '',
+            level: String(spell.level),
+            school: spell.school ?? '',
+            castingTime: spell.castingTime ?? '',
+            range: spell.range ?? '',
+            components: spell.components ?? '',
+            duration: spell.duration ?? '',
+            concentration: spell.concentration,
+            ritual: spell.ritual,
+            description: spell.description ?? '',
+        });
+        setAddVisible(true);
+    };
+
     const updateForm = <K extends keyof SpellForm>(
         key: K,
         value: SpellForm[K],
@@ -132,7 +152,7 @@ export default function SpellbookCard({
         }
     };
 
-    const addSpell = async () => {
+    const submitSpell = async () => {
         const name = form.name.trim();
         const level = Number(form.level);
 
@@ -140,24 +160,27 @@ export default function SpellbookCard({
             Alert.alert('Missing Spell Name', 'Enter a spell name first.');
             return;
         }
-        if (!form.sourceClass || !characterClasses.includes(form.sourceClass)) {
+
+        if (
+            !form.sourceClass ||
+            !characterClasses.includes(form.sourceClass)
+        ) {
             Alert.alert(
                 'Missing Spellcasting Class',
                 'Select which class this spell belongs to.',
             );
             return;
         }
-        if (
-            !Number.isInteger(level) ||
-            level < 0 ||
-            level > 9
-        ) {
+
+        if (!Number.isInteger(level) || level < 0 || level > 9) {
             Alert.alert('Invalid Level', 'Spell level must be between 0 and 9.');
             return;
         }
 
         const duplicate = spells.some(
-            (spell) => spell.name.trim().toLowerCase() === name.toLowerCase(),
+            (spell) =>
+                spell !== editingSpell &&
+                spell.name.trim().toLowerCase() === name.toLowerCase(),
         );
 
         if (duplicate) {
@@ -169,27 +192,49 @@ export default function SpellbookCard({
         }
 
         try {
-            const spell = new Spell({
-                name,
-                sourceClass: form.sourceClass,
-                level,
-                school: form.school.trim(),
-                castingTime: form.castingTime.trim(),
-                range: form.range.trim(),
-                components: form.components.trim(),
-                duration: form.duration.trim(),
-                concentration: form.concentration,
-                ritual: form.ritual,
-                description: form.description.trim(),
-                prepared: false,
-            });
+            let updatedSpells: Spell[];
+
+            if (editingSpell) {
+                updatedSpells = spells.map((spell) => {
+                    if (spell !== editingSpell) return spell;
+
+                    return Object.assign(cloneSpell(spell), {
+                        name,
+                        sourceClass: form.sourceClass,
+                        level,
+                        school: form.school.trim(),
+                        castingTime: form.castingTime.trim(),
+                        range: form.range.trim(),
+                        components: form.components.trim(),
+                        duration: form.duration.trim(),
+                        concentration: form.concentration,
+                        ritual: form.ritual,
+                        description: form.description.trim(),
+                    });
+                });
+            } else {
+                const spell = new Spell({
+                    name,
+                    sourceClass: form.sourceClass,
+                    level,
+                    school: form.school.trim(),
+                    castingTime: form.castingTime.trim(),
+                    range: form.range.trim(),
+                    components: form.components.trim(),
+                    duration: form.duration.trim(),
+                    concentration: form.concentration,
+                    ritual: form.ritual,
+                    description: form.description.trim(),
+                    prepared: false,
+                });
+
+                updatedSpells = [...spells, spell];
+            }
 
             const updatedSpellbook = Object.assign(
                 Object.create(Object.getPrototypeOf(character.spellbook)),
                 character.spellbook,
-                {
-                    spells: [...spells, spell],
-                },
+                { spells: updatedSpells },
             );
 
             const updated = cloneCharacter(character, {
@@ -198,14 +243,15 @@ export default function SpellbookCard({
 
             if (await persist(updated)) {
                 setForm(EMPTY_FORM);
+                setEditingSpell(null);
                 setAddVisible(false);
             }
         } catch (error) {
             Alert.alert(
-                'Cannot Add Spell',
+                editingSpell ? 'Cannot Edit Spell' : 'Cannot Add Spell',
                 error instanceof Error
                     ? error.message
-                    : 'The spell could not be added.',
+                    : 'The spell could not be saved.',
             );
         }
     };
@@ -394,7 +440,10 @@ export default function SpellbookCard({
                     gap: 8,
                 }}
             >
-                <View style={{ flex: 1, gap: 4 }}>
+                <View style={{
+                    flex: 1,
+                    gap: 4,
+                }}>
                     <Text
                         style={{
                             color: colors.accent,
@@ -404,34 +453,42 @@ export default function SpellbookCard({
                     >
                         {spell.name}
                     </Text>
-                    <Text
-                        style={{
-                            color: colors.textSecondary,
-                            fontSize: 12,
-                        }}
-                    >
-                        {spell.level === 0
-                            ? 'Cantrip'
-                            : `Level ${spell.level}`}
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                        {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+                        {' · '}
+                        {spell.sourceClass || character.characterClass}
                         {' · '}
                         {spell.school || 'School unspecified'}
                     </Text>
                 </View>
-                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
-                    {' · '}
-                    {spell.sourceClass || character.characterClass}
-                    {' · '}
-                    {spell.school || 'School unspecified'}
-                </Text>
 
-                <Pressable
-                    onPress={() => removeSpell(spell)}
-                    disabled={saving}
-                    style={buttonStyle}
-                >
-                    <Text style={buttonTextStyle}>Remove</Text>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Pressable
+                        onPress={() => openEditSpell(spell)}
+                        disabled={saving}
+                        style={buttonStyle}
+                        accessibilityLabel={`Edit ${spell.name}`}
+                    >
+                        <Ionicons
+                            name="create-outline"
+                            size={12}
+                            color={colors.text}
+                        />
+                    </Pressable>
+
+                    <Pressable
+                        onPress={() => removeSpell(spell)}
+                        disabled={saving}
+                        style={buttonStyle}
+                        accessibilityLabel={`Remove ${spell.name}`}
+                    >
+                        <Ionicons
+                            name="trash-outline"
+                            size={12}
+                            color="#E05252"
+                        />
+                    </Pressable>
+                </View>
             </View>
 
             <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
@@ -534,6 +591,7 @@ export default function SpellbookCard({
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                             <Pressable
                                 onPress={() => {
+                                    setEditingSpell(null);
                                     setForm({
                                         ...EMPTY_FORM,
                                         sourceClass: characterClasses[0] ?? '',
@@ -618,7 +676,10 @@ export default function SpellbookCard({
                 visible={addVisible}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setAddVisible(false)}
+                onRequestClose={() => {
+                    setAddVisible(false);
+                    setEditingSpell(null);
+                }}
             >
                 <View
                     style={{
@@ -646,7 +707,7 @@ export default function SpellbookCard({
                                 fontWeight: '800',
                             }}
                         >
-                            Add Spell
+                            {editingSpell ? 'Edit Spell' : 'Add Spell'}
                         </Text>
 
                         <ScrollView
@@ -807,12 +868,21 @@ export default function SpellbookCard({
                             <ModalButton
                                 label="Cancel"
                                 colors={colors}
-                                onPress={() => setAddVisible(false)}
+                                onPress={() => {
+                                    setAddVisible(false);
+                                    setEditingSpell(null);
+                                }}
                             />
                             <ModalButton
-                                label={saving ? 'Saving…' : 'Save Spell'}
+                                label={
+                                    saving
+                                        ? 'Saving…'
+                                        : editingSpell
+                                            ? 'Save Changes'
+                                            : 'Save Spell'
+                                }
                                 colors={colors}
-                                onPress={addSpell}
+                                onPress={submitSpell}
                                 disabled={saving}
                                 primary
                             />

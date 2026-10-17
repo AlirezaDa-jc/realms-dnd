@@ -74,59 +74,79 @@ async function migrateCharacterClassLevels(
     try {
       data = JSON.parse(row.data_json);
     } catch {
-      // Do not overwrite records that cannot be parsed.
       console.warn(
         `Skipping character migration: invalid JSON for ${row.id}`,
       );
       continue;
     }
 
-    // Already migrated: leave the character untouched.
+    let changed = false;
+
+    // Migrate legacy single-class data when classLevels is missing or empty.
     if (
-      Array.isArray(data.classLevels) &&
-      data.classLevels.length > 0
+      (!Array.isArray(data.classLevels) ||
+        data.classLevels.length === 0) &&
+      typeof data.characterClass === 'string' &&
+      data.characterClass.trim().length > 0
     ) {
-      continue;
+      const parsedLevel = Number(data.level);
+      const level =
+        Number.isInteger(parsedLevel) && parsedLevel >= 1
+          ? parsedLevel
+          : 1;
+
+      data.classLevels = [
+        {
+          characterClass: data.characterClass,
+          subClass:
+            typeof data.subClass === 'string'
+              ? data.subClass
+              : '',
+          level,
+        },
+      ];
+
+      delete data.characterClass;
+      delete data.subClass;
+      delete data.level;
+
+      changed = true;
     }
 
-    // Only migrate records that actually have the legacy class fields.
-    if (
-      typeof data.characterClass !== 'string' ||
-      data.characterClass.trim().length === 0
-    ) {
-      continue;
+    const firstClass = Array.isArray(data.classLevels)
+      ? data.classLevels.find(
+        (entry: any) =>
+          typeof entry?.characterClass === 'string' &&
+          entry.characterClass.trim().length > 0,
+      )?.characterClass
+      : undefined;
+
+    // Assign the first class to every existing spell.
+    const spells = data.spellbook?.spells;
+
+    if (firstClass && Array.isArray(spells)) {
+      for (const spell of spells) {
+        if (
+          spell &&
+          typeof spell === 'object' &&
+          spell.sourceClass !== firstClass
+        ) {
+          spell.sourceClass = firstClass;
+          changed = true;
+        }
+      }
     }
 
-    const parsedLevel = Number(data.level);
-    const level =
-      Number.isInteger(parsedLevel) && parsedLevel >= 1
-        ? parsedLevel
-        : 1;
-
-    data.classLevels = [
-      {
-        characterClass: data.characterClass,
-        subClass:
-          typeof data.subClass === 'string'
-            ? data.subClass
-            : '',
-        level,
-      },
-    ];
-
-    // Preserve all other data. Remove the legacy fields so classLevels
-    // becomes the sole source of class and level information.
-    delete data.characterClass;
-    delete data.subClass;
-    delete data.level;
-
-    await db.runAsync(
-      `UPDATE characters
-       SET data_json = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      JSON.stringify(data),
-      row.id,
-    );
+    // Save only records that actually changed.
+    if (changed) {
+      await db.runAsync(
+        `UPDATE characters
+         SET data_json = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        JSON.stringify(data),
+        row.id,
+      );
+    }
   }
 }
