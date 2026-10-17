@@ -280,6 +280,7 @@ export default function Dashboard({
         },
         [character],
     );
+
     const handleAddCondition = useCallback(
         async (condition: string) => {
             if (!character) return;
@@ -354,6 +355,82 @@ export default function Dashboard({
         },
         [character],
     );
+
+    const handleAddFeat = useCallback(
+        async (feat: string) => {
+            if (!character) return;
+
+            const updatedCharacter = Object.assign(
+                Object.create(Object.getPrototypeOf(character)),
+                character,
+                { conditions: [...character.conditions] },
+            ) as Character;
+
+            try {
+                updatedCharacter.addFeat(feat);
+
+                setCharacter(updatedCharacter);
+                await saveCharacter(updatedCharacter);
+            } catch (error) {
+                setCharacter(character);
+
+                Alert.alert(
+                    'Could not add feat',
+                    error instanceof Error
+                        ? error.message
+                        : 'Failed to save the feat.',
+                );
+            }
+        },
+        [character],
+    );
+
+    const handleRemoveFeat = useCallback(
+        (feat: string) => {
+            if (!character) return;
+
+            Alert.alert(
+                'Remove Feat',
+                `Are you sure you want to remove "${feat}"?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => {
+                            void (async () => {
+                                const updatedCharacter = Object.assign(
+                                    Object.create(
+                                        Object.getPrototypeOf(character),
+                                    ),
+                                    character,
+                                    { conditions: [...character.conditions] },
+                                ) as Character;
+
+                                try {
+                                    updatedCharacter.removeFeat(feat);
+
+                                    setCharacter(updatedCharacter);
+                                    await saveCharacter(updatedCharacter);
+                                } catch (error) {
+                                    setCharacter(character);
+
+                                    Alert.alert(
+                                        'Could not remove feat',
+                                        error instanceof Error
+                                            ? error.message
+                                            : 'Failed to save the change.',
+                                    );
+                                }
+                            })();
+                        },
+                    },
+                ],
+            );
+        },
+        [character],
+    );
+
     const handleUploadPortrait = useCallback(
         async (uri: string) => {
             if (!character) return;
@@ -489,6 +566,8 @@ export default function Dashboard({
                             );
                         }}
                         onChangeText={handleChangeText}
+                        onAddFeat={handleAddFeat}
+                        onRemoveFeat={handleRemoveFeat}
                         onAddCondition={handleAddCondition}
                         onRemoveCondition={handleRemoveCondition}
                         onAddTrait={handleAddTrait}

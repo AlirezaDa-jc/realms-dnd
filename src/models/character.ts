@@ -105,11 +105,11 @@ export class Character {
     damageImmunities: string[];
     damageVulnerabilities: string[];
     conditionImmunities: string[];
+    feats: string[];
 
     // Class features and resources
     classActions: ClassAction[];
     resources: CharacterResource[];
-
     // Hit points
     maxHp: number;
     currentHp: number;
@@ -118,9 +118,9 @@ export class Character {
     // Movement
     speed: number;
 
+    conditions: string[];
 
     // Character details
-    conditions: string[];
     traits: string[];
     ideals: string;
     bonds: string;
@@ -226,6 +226,7 @@ export class Character {
 
         // Character details
         this.traits = [...(data.traits ?? [])];
+        this.feats = [...(data.feats ?? [])];
         this.conditions = [...(data.conditions ?? [])];
         this.ideals = data.ideals ?? '';
         this.bonds = data.bonds ?? '';
@@ -926,6 +927,40 @@ export class Character {
         }
 
         this.conditions.splice(index, 1);
+    }
+
+    addFeat(feat: string): void {
+        const normalized = feat.trim();
+
+        if (!normalized) {
+            throw new Error('Feat cannot be empty.');
+        }
+
+        if (
+            this.feats.some(
+                (item) =>
+                    item.toLocaleLowerCase() ===
+                    normalized.toLocaleLowerCase(),
+            )
+        ) {
+            throw new Error('Feat already exists.');
+        }
+
+        this.feats.push(normalized);
+    }
+
+    removeFeat(feat: string): void {
+        const index = this.feats.findIndex(
+            (item) =>
+                item.toLocaleLowerCase() ===
+                feat.trim().toLocaleLowerCase(),
+        );
+
+        if (index === -1) {
+            throw new Error(`Feat not found: ${feat}`);
+        }
+
+        this.feats.splice(index, 1);
     }
 }
 

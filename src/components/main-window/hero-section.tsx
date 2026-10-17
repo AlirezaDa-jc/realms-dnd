@@ -25,6 +25,8 @@ type HeroSectionProps = {
     onRemoveTrait: (trait: string) => void;
     onAddCondition: (condition: string) => void;
     onRemoveCondition: (condition: string) => void;
+    onAddFeat: (feat: string) => void;
+    onRemoveFeat: (feat: string) => void;
     onUploadPortrait: (uri: string) => void | Promise<void>;
     onTakeRest: (restType: RecoveryType) => void | Promise<void>;
     horizontal?: boolean;
@@ -37,6 +39,8 @@ export default function HeroSection({
     onRemoveTrait,
     onAddCondition,
     onRemoveCondition,
+    onAddFeat,
+    onRemoveFeat,
     onUploadPortrait,
     onTakeRest,
     horizontal = true,
@@ -51,6 +55,10 @@ export default function HeroSection({
     const [expandedConditions, setExpandedConditions] = useState(true);
     const [conditionModalVisible, setConditionModalVisible] = useState(false);
     const [newCondition, setNewCondition] = useState('');
+
+    const [expandedFeats, setExpandedFeats] = useState(true);
+    const [featModalVisible, setFeatModalVisible] = useState(false);
+    const [newFeat, setNewFeat] = useState('');
 
     function renderTextField(
         label: string,
@@ -183,6 +191,29 @@ export default function HeroSection({
         onAddCondition(condition);
         setConditionModalVisible(false);
         setNewCondition('');
+    }
+
+    function addFeat() {
+        const feat = newFeat.trim();
+
+        if (!feat) {
+            Alert.alert('Invalid Feat', 'Feat name cannot be empty.');
+            return;
+        }
+
+        const duplicate = (character.feats ?? []).some(
+            (item) =>
+                item.toLocaleLowerCase() === feat.toLocaleLowerCase(),
+        );
+
+        if (duplicate) {
+            Alert.alert('Duplicate Feat', 'This feat already exists.');
+            return;
+        }
+
+        onAddFeat(feat);
+        setFeatModalVisible(false);
+        setNewFeat('');
     }
 
     const classLevels = character.classLevels ?? [];
@@ -714,6 +745,125 @@ export default function HeroSection({
                     )}
                 </View>
 
+
+                {/* Feats */}
+                <View style={{ gap: 12 }}>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <Pressable
+                            onPress={() => setExpandedFeats((value) => !value)}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontWeight: '800',
+                                }}
+                            >
+                                FEATS
+                            </Text>
+
+                            <Text
+                                style={{
+                                    color: colors.textSecondary,
+                                    fontSize: 12,
+                                }}
+                            >
+                                {expandedFeats ? '⌃' : '⌄'}
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={() => {
+                                setNewFeat('');
+                                setFeatModalVisible(true);
+                            }}
+                            style={{
+                                paddingHorizontal: 12,
+                                paddingVertical: 7,
+                                borderRadius: 8,
+                                backgroundColor: colors.backgroundSelected,
+                            }}
+                        >
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontSize: 12,
+                                    fontWeight: '700',
+                                }}
+                            >
+                                + Add
+                            </Text>
+                        </Pressable>
+                    </View>
+
+                    {expandedFeats && (
+                        <View style={{ gap: 7 }}>
+                            {(character.feats ?? []).length === 0 ? (
+                                <Text
+                                    style={{
+                                        color: colors.textSecondary,
+                                        fontSize: 12,
+                                    }}
+                                >
+                                    No feats added yet.
+                                </Text>
+                            ) : (
+                                character.feats.map((feat, index) => (
+                                    <View
+                                        key={`${feat}-${index}`}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 10,
+                                            padding: 10,
+                                            borderRadius: 9,
+                                            backgroundColor: 'rgba(128,128,128,0.06)',
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                        }}
+                                    >
+                                        <Text
+                                            style={{
+                                                color: colors.text,
+                                                flex: 1,
+                                                fontSize: 13,
+                                            }}
+                                        >
+                                            {feat}
+                                        </Text>
+
+                                        <Pressable
+                                            onPress={() => onRemoveFeat(feat)}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Remove ${feat}`}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 17,
+                                                }}
+                                            >
+                                                ×
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                ))
+                            )}
+                        </View>
+                    )}
+                </View>
+
+
                 {/* Traits */}
                 <View style={{ gap: 12 }}>
                     <View
@@ -1221,6 +1371,121 @@ export default function HeroSection({
                     </View>
                 </View>
             </Modal>
+
+            {/* Add Feat Modal */}
+            <Modal
+                visible={featModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setFeatModalVisible(false)}
+            >
+                <View
+                    style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        padding: 24,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                    }}
+                >
+                    <Pressable
+                        onPress={() => setFeatModalVisible(false)}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                        }}
+                    />
+
+                    <View
+                        style={{
+                            width: '100%',
+                            maxWidth: 420,
+                            padding: 20,
+                            gap: 16,
+                            borderRadius: 16,
+                            backgroundColor: colors.background,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontSize: 18,
+                                fontWeight: '800',
+                            }}
+                        >
+                            Add Feat
+                        </Text>
+
+                        <TextInput
+                            value={newFeat}
+                            onChangeText={setNewFeat}
+                            placeholder="Enter feat name"
+                            placeholderTextColor={colors.textSecondary}
+                            autoFocus
+                            returnKeyType="done"
+                            onSubmitEditing={addFeat}
+                            style={{
+                                padding: 12,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 10,
+                                backgroundColor: colors.backgroundElement,
+                                color: colors.text,
+                                fontSize: 14,
+                            }}
+                        />
+
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                justifyContent: 'flex-end',
+                                gap: 10,
+                            }}
+                        >
+                            <Pressable
+                                onPress={() => {
+                                    setFeatModalVisible(false);
+                                    setNewFeat('');
+                                }}
+                                style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 10,
+                                    borderRadius: 9,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <Text style={{ color: colors.text }}>Cancel</Text>
+                            </Pressable>
+
+                            <Pressable
+                                onPress={addFeat}
+                                style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 10,
+                                    borderRadius: 9,
+                                    backgroundColor: colors.backgroundSelected,
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        color: colors.text,
+                                        fontWeight: '700',
+                                    }}
+                                >
+                                    Add Feat
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
         </BlurView>
     );
 }
