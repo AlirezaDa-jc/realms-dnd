@@ -1,56 +1,110 @@
-# Welcome to your Expo app 👋
+# Realms
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**A Dungeons & Dragons 5th Edition (2024) character manager.**
 
-## Get started
+Realms is a character management application designed to help players create, organize, and maintain their D&D characters. It focuses on character data, derived statistics, spells, equipment-related rules, and character resources rather than dice rolling.
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+- **Character management** — Create, store, and manage D&D characters.
+- **Character statistics** — Track ability scores, modifiers, armor class, and other character information.
+- **Rules-based calculations** — Support derived values and D&D 5e (2024) mechanics.
+- **Spells and spell slots** — Organize spells by level and manage available spell slots.
+- **Character resources** — Track class features and limited-use resources, including their recovery on short and long rests.
+- **Portraits** — Associate an image with a character.
+- **Import and export** — Export characters as JSON and import them later, including embedded portrait data for portability.
+- **Persistent storage** — Keep character data available between app sessions.
 
-2. Start the app
+## Tech Stack
 
-   ```bash
-   npx expo start
-   ```
+- **React Native** — Cross-platform application framework.
+- **Expo** — Development tooling and native API integration.
+- **Expo Router** — File-based application navigation.
+- **TypeScript** — Type-safe application development.
+- **Expo Document Picker** — Select character JSON files for import.
+- **Expo FileSystem** — Read, write, and manage character files and portrait images.
+- **Expo Crypto** — Generate unique character identifiers.
 
-In the output, you'll find options to open the app in a
+## Getting Started
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Prerequisites
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- Node.js compatible with the installed Expo SDK
+- npm
+- Expo Go for compatible-device testing, or an appropriate native development build
 
-## Get a fresh project
+### Installation
 
-When you're ready, run:
+Clone the repository and install its dependencies:
 
 ```bash
-npm run reset-project
+git clone https://github.com/AlirezaDa-jc/realms-dnd.git
+cd Realms
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+If you already have the project locally, open the project directory and run `npm install` when needed.
 
-### Other setup steps
+### Run the application
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Start the Expo development server:
 
-## Learn more
+```bash
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Follow the terminal instructions to launch the app on a compatible device or emulator.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Character Import and Export
 
-## Join the community
+Realms uses JSON to make character data portable between app installations.
 
-Join our community of developers creating universal apps.
+### Export
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+A character is serialized into JSON. Portrait image data is embedded in the exported file so the character does not depend on the original device's local image path.
+
+### Import
+
+When a character is imported:
+
+1. The JSON file is selected using the native file picker.
+2. The character data is parsed and reconstructed.
+3. A new unique ID is generated for the imported character.
+4. Embedded portrait data is restored to the app's local document storage.
+5. The character is saved to the application's character storage.
+
+This approach allows imported characters to use their own locally stored portraits rather than relying on file paths from another device.
+
+## Project Goals
+
+Realms aims to provide a focused character-management experience with:
+
+- Reliable character data persistence.
+- Clear separation between character data and game-rule calculations.
+- Automatic calculations where appropriate, with support for manual overrides.
+- Flexible spell and resource management.
+- Portable character backups.
+- A maintainable architecture that can evolve as the application grows.
+
+## Scope
+
+Realms is a character manager, **not a dice-rolling application**. Its focus is on maintaining character information and supporting relevant D&D rules.
+
+## Development
+
+Install dependencies before starting development:
+
+```bash
+npm install
+npx expo start
+```
+
+When changing Expo or React Native dependencies, prefer Expo's version-aware installer:
+
+```bash
+npx expo install <package-name>
+```
+
+## License
+
+No license has been specified yet. All rights are reserved by default unless a license is added to this repository.

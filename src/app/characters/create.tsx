@@ -16,9 +16,11 @@ export default function CreateCharacterScreen() {
             const character = new Character({
                 name: values.name,
                 species: values.species,
-                characterClass: values.characterClass,
-                subClass: values.subClass,
-                level: Number(values.level),
+                classLevels: values.classLevels.map((entry) => ({
+                    characterClass: entry.characterClass,
+                    subClass: entry.subClass.trim(),
+                    level: Number(entry.level),
+                })),
                 background: values.background,
                 abilities: {
                     str: Number(values.abilities.str),

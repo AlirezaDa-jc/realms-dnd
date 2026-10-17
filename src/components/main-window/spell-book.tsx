@@ -23,6 +23,7 @@ type SpellbookProps = {
 
 type SpellForm = {
     name: string;
+    sourceClass: string;
     level: string;
     school: string;
     castingTime: string;
@@ -36,6 +37,7 @@ type SpellForm = {
 
 const EMPTY_FORM: SpellForm = {
     name: '',
+    sourceClass: '',
     level: '0',
     school: '',
     castingTime: 'Action',
@@ -83,7 +85,9 @@ export default function SpellbookCard({
     const [saving, setSaving] = useState(false);
 
     const spells = character.spellbook.spells;
-
+    const characterClasses = character.classLevels.map(
+        (entry) => entry.characterClass,
+    );
     const preparedSpells = useMemo(
         () => spells.filter((spell) => spell.prepared),
         [spells],
@@ -136,7 +140,13 @@ export default function SpellbookCard({
             Alert.alert('Missing Spell Name', 'Enter a spell name first.');
             return;
         }
-
+        if (!form.sourceClass || !characterClasses.includes(form.sourceClass)) {
+            Alert.alert(
+                'Missing Spellcasting Class',
+                'Select which class this spell belongs to.',
+            );
+            return;
+        }
         if (
             !Number.isInteger(level) ||
             level < 0 ||
@@ -161,6 +171,7 @@ export default function SpellbookCard({
         try {
             const spell = new Spell({
                 name,
+                sourceClass: form.sourceClass,
                 level,
                 school: form.school.trim(),
                 castingTime: form.castingTime.trim(),
@@ -406,6 +417,13 @@ export default function SpellbookCard({
                         {spell.school || 'School unspecified'}
                     </Text>
                 </View>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+                    {' · '}
+                    {spell.sourceClass || character.characterClass}
+                    {' · '}
+                    {spell.school || 'School unspecified'}
+                </Text>
 
                 <Pressable
                     onPress={() => removeSpell(spell)}
@@ -516,7 +534,10 @@ export default function SpellbookCard({
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                             <Pressable
                                 onPress={() => {
-                                    setForm(EMPTY_FORM);
+                                    setForm({
+                                        ...EMPTY_FORM,
+                                        sourceClass: characterClasses[0] ?? '',
+                                    });
                                     setAddVisible(true);
                                 }}
                                 style={buttonStyle}
@@ -651,6 +672,46 @@ export default function SpellbookCard({
                                     placeholderTextColor={colors.textSecondary}
                                     style={inputStyle}
                                 />
+                            </Field>
+                            <Field label="Spellcasting Class" colors={colors}>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                    {characterClasses.map((className) => {
+                                        const selected = form.sourceClass === className;
+
+                                        return (
+                                            <Pressable
+                                                key={className}
+                                                onPress={() => updateForm('sourceClass', className)}
+                                                style={[
+                                                    buttonStyle,
+                                                    {
+                                                        backgroundColor: selected
+                                                            ? colors.accent
+                                                            : colors.backgroundElement,
+                                                        borderColor: selected
+                                                            ? colors.accent
+                                                            : colors.border,
+                                                    },
+                                                ]}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        buttonTextStyle,
+                                                        {
+                                                            color: selected
+                                                                ? scheme === 'dark'
+                                                                    ? '#11100F'
+                                                                    : '#FFFFFF'
+                                                                : colors.text,
+                                                        },
+                                                    ]}
+                                                >
+                                                    {className}
+                                                </Text>
+                                            </Pressable>
+                                        );
+                                    })}
+                                </View>
                             </Field>
 
                             {(

@@ -42,8 +42,11 @@ export default function EditCharacterScreen() {
                 const values: CharacterFormValues = {
                     name: loaded.name ?? '',
                     species: loaded.species ?? '',
-                    characterClass: loaded.characterClass ?? '',
-                    level: String(loaded.level ?? 1),
+                    classLevels: (loaded.classLevels ?? []).map((entry) => ({
+                        characterClass: entry.characterClass ?? '',
+                        subClass: entry.subClass ?? '',
+                        level: String(entry.level ?? 1),
+                    })),
                     background: loaded.background ?? '',
                     abilities: {
                         str: String(loaded.abilities.str ?? 10),
@@ -96,8 +99,10 @@ export default function EditCharacterScreen() {
                 {
                     name: values.name.trim(),
                     species: values.species,
-                    characterClass: values.characterClass,
-                    level: Number(values.level),
+                    classLevels: values.classLevels.map((entry) => ({
+                        ...entry,
+                        level: Number(entry.level),
+                    })),
                     background: values.background.trim(),
                     abilities: {
                         str: Number(values.abilities.str),

@@ -50,11 +50,25 @@ export class Spellbook {
     return spell;
   }
 
+  setSpellSourceClass(name: string, sourceClass: string): void {
+    const spell = this.getSpell(name);
+    spell.sourceClass = sourceClass.trim();
+  }
+
   getSpellsByLevel(level: number): Spell[] {
     return this.spells.filter((spell) => spell.level === level);
   }
 
   getCantrips(): Spell[] {
     return this.getSpellsByLevel(0);
+  }
+
+  getSpellsByClass(sourceClass: string): Spell[] {
+    const normalizedClass = sourceClass.trim().toLocaleLowerCase();
+
+    return this.spells.filter(
+      (spell) =>
+        spell.sourceClass.trim().toLocaleLowerCase() === normalizedClass,
+    );
   }
 }

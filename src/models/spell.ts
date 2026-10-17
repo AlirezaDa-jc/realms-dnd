@@ -12,6 +12,9 @@ export class Spell {
   prepared: boolean;
   ritual: boolean;
 
+  // The class through which this spell is known or prepared.
+  sourceClass: string;
+
   constructor({
     name,
     level,
@@ -24,6 +27,7 @@ export class Spell {
     description = '',
     prepared = false,
     ritual = false,
+    sourceClass = '',
   }: {
     name: string;
     level: number;
@@ -36,6 +40,7 @@ export class Spell {
     description?: string;
     prepared?: boolean;
     ritual?: boolean;
+    sourceClass?: string;
   }) {
     this.name = name;
     this.level = level;
@@ -48,6 +53,7 @@ export class Spell {
     this.description = description;
     this.prepared = prepared;
     this.ritual = ritual;
+    this.sourceClass = sourceClass.trim();
 
     this.validate();
   }

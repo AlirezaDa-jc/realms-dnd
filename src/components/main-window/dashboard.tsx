@@ -404,29 +404,17 @@ export default function Dashboard({
                     }
                 >
                     <HeroSection
-                        name={character.name}
-                        species={character.species}
-                        characterClass={character.characterClass}
-                        subClass={character.subClass}
-                        level={character.level}
-                        background={character.background}
-                        traits={character.traits}
-                        ideals={character.ideals}
-                        bonds={character.bonds}
-                        flaws={character.flaws}
+                        character={character}
                         onTakeRest={async (restType) => {
                             character.takeRest(restType);
 
                             await handleCombatUpdate(
                                 Object.assign(
-                                    Object.create(
-                                        Object.getPrototypeOf(character),
-                                    ),
+                                    Object.create(Object.getPrototypeOf(character)),
                                     character,
                                 ) as Character,
                             );
                         }}
-                        portraitPath={character.portraitPath}
                         onChangeText={handleChangeText}
                         onAddTrait={handleAddTrait}
                         onRemoveTrait={handleRemoveTrait}

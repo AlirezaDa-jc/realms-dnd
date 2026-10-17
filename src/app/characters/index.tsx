@@ -289,12 +289,27 @@ export default function CharactersScreen() {
         }
     }
 
-    function getCharacterClass(character: Character) {
-        const value = character.characterClass;
-        if (!value) return 'Class not set';
-        return String(value);
+    function getCharacterClasses(character: Character) {
+        const classLevels = character.classLevels ?? [];
+
+        if (classLevels.length === 0) {
+            return 'Class not set';
+        }
+
+        return classLevels
+            .map(({ characterClass, subClass, level }) => {
+                const className = subClass
+                    ? `${subClass} ${characterClass}`
+                    : characterClass;
+
+                return `${className} ${level}`;
+            })
+            .join(' / ');
     }
 
+    function getTotalLevel(character: Character) {
+        return character.totalLevel;
+    }
     function getSpecies(character: Character) {
         const value = character.species;
         if (!value) return 'Species not set';
@@ -501,7 +516,7 @@ export default function CharactersScreen() {
                                         ]}
                                     >
                                         <Text style={[styles.levelText, { color: colors.text }]}>
-                                            LV {entry.character.level}
+                                            LV {getTotalLevel(entry.character)}
                                         </Text>
                                     </View>
                                 </View>
@@ -512,7 +527,7 @@ export default function CharactersScreen() {
                                         { color: colors.textSecondary },
                                     ]}
                                 >
-                                    {getCharacterClass(entry.character)}
+                                    {getCharacterClasses(entry.character)}
                                 </Text>
 
                                 <Text style={[styles.openHint, { color: colors.accent }]}>

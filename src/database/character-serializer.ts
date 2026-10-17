@@ -19,11 +19,42 @@ export function characterToJSON(character: Character): string {
     return JSON.stringify(character);
 }
 
+
 export function characterFromJSON(json: string): Character {
     const data = JSON.parse(json);
 
+    // Migrate legacy single-class data to classLevels.
+    const classLevels = Array.isArray(data.classLevels)
+        ? data.classLevels
+        : typeof data.characterClass === 'string' &&
+            data.characterClass.trim().length > 0
+            ? [
+                {
+                    characterClass: data.characterClass,
+                    subClass:
+                        typeof data.subClass === 'string'
+                            ? data.subClass
+                            : '',
+                    level:
+                        Number.isInteger(Number(data.level)) &&
+                            Number(data.level) >= 1
+                            ? Number(data.level)
+                            : 1,
+                },
+            ]
+            : [];
+
+    // Remove legacy fields so classLevels is the source of truth.
+    const {
+        characterClass: _legacyClass,
+        subClass: _legacySubclass,
+        level: _legacyLevel,
+        ...characterData
+    } = data;
+
     const character = new Character({
-        ...data,
+        ...characterData,
+        classLevels,
 
         // Nested models are restored below.
         spellbook: new Spellbook(),
@@ -52,9 +83,9 @@ export function characterFromJSON(json: string): Character {
         ]),
     );
 
-
-
-    character.resources = (data.resources as SerializedResource[] ?? []).map(
+    character.resources = (
+        data.resources as SerializedResource[] ?? []
+    ).map(
         (resource) =>
             new CharacterResource(
                 resource.name,
@@ -63,6 +94,7 @@ export function characterFromJSON(json: string): Character {
                 resource.recovery,
             ),
     );
+
     character.classActions = (data.classActions ?? []).map(
         (action: ConstructorParameters<typeof ClassAction>[0]) =>
             new ClassAction(action),

@@ -277,27 +277,6 @@ export default function CombatStats({
                         "initiative"
                     )}
                     {renderStat('SPEED', `${character.totalSpeed} ft`, "speed")}
-                    {renderStat(
-                        'SPELL DC',
-                        character.spellcastingAbility !== null
-                            ? String(character.spellSaveDc)
-                            : '—',
-                        "spell_save_dc"
-                    )}
-                    {renderStat(
-                        'SPELL ATTACK BONUS',
-                        character.spellAttackBonus !== null
-                            ? String(character.spellAttackBonus)
-                            : '—',
-                        'spell_attack_bonus',
-                    )}
-                    {renderStat(
-                        'SPELL CASTING MODIFIER',
-                        character.spellCastingModifier !== null
-                            ? String(character.spellCastingModifier)
-                            : '—',
-                        'spell_casting_modifier',
-                    )}
                 </View>
 
                 <Modal

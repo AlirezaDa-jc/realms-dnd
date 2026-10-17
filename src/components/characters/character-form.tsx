@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import {
     Alert,
@@ -24,12 +25,16 @@ import { useColorScheme } from 'react-native';
 type AbilityKey = (typeof ABILITIES)[number]['key'];
 type AbilityScores = Record<AbilityKey, string>;
 
-export type CharacterFormValues = {
-    name: string;
-    species: string;
+export type CharacterClassLevelForm = {
     characterClass: string;
     subClass: string;
     level: string;
+};
+
+export type CharacterFormValues = {
+    name: string;
+    species: string;
+    classLevels: CharacterClassLevelForm[];
     background: string;
     abilities: AbilityScores;
     maxHp: string;
@@ -56,9 +61,7 @@ const EMPTY_ABILITIES: AbilityScores = {
 const EMPTY_VALUES: CharacterFormValues = {
     name: '',
     species: '',
-    characterClass: '',
-    subClass: '',
-    level: '1',
+    classLevels: [],
     background: '',
     abilities: EMPTY_ABILITIES,
     maxHp: '',
@@ -82,8 +85,26 @@ export default function CharacterForm({
             ...EMPTY_ABILITIES,
             ...initialValues?.abilities,
         },
+        classLevels: initialValues?.classLevels
+            ? initialValues.classLevels.map((entry) => ({ ...entry }))
+            : [],
     }));
 
+    // Tracks which class cards currently display a subclass field.
+    const [subclassVisible, setSubclassVisible] = useState<
+        Record<number, boolean>
+    >(() =>
+        Object.fromEntries(
+            (initialValues?.classLevels ?? []).map((entry, index) => [
+                index,
+                Boolean(entry.subClass?.trim()),
+            ]),
+        ),
+    );
+
+    const [selectedClassIndex, setSelectedClassIndex] = useState<number | null>(
+        null,
+    );
     const [speciesModalVisible, setSpeciesModalVisible] = useState(false);
     const [classModalVisible, setClassModalVisible] = useState(false);
 
@@ -104,20 +125,106 @@ export default function CharacterForm({
         }));
     }
 
+    function addClass() {
+        setValues((previous) => ({
+            ...previous,
+            classLevels: [
+                ...previous.classLevels,
+                {
+                    characterClass: '',
+                    subClass: '',
+                    level: '1',
+                },
+            ],
+        }));
+
+        // The new class has no subclass until the user adds one.
+        setSubclassVisible((previous) => ({
+            ...previous,
+            [values.classLevels.length]: false,
+        }));
+    }
+
+    function updateClassLevel(
+        index: number,
+        key: keyof CharacterClassLevelForm,
+        value: string,
+    ) {
+        setValues((previous) => ({
+            ...previous,
+            classLevels: previous.classLevels.map((entry, entryIndex) =>
+                entryIndex === index
+                    ? { ...entry, [key]: value }
+                    : entry,
+            ),
+        }));
+    }
+
+    function addSubclass(index: number) {
+        setSubclassVisible((previous) => ({
+            ...previous,
+            [index]: true,
+        }));
+    }
+
+    function removeSubclass(index: number) {
+        updateClassLevel(index, 'subClass', '');
+
+        setSubclassVisible((previous) => ({
+            ...previous,
+            [index]: false,
+        }));
+    }
+
+    function removeClass(index: number) {
+        setValues((previous) => ({
+            ...previous,
+            classLevels: previous.classLevels.filter(
+                (_, entryIndex) => entryIndex !== index,
+            ),
+        }));
+
+        // Shift visibility entries to match the remaining class cards.
+        setSubclassVisible((previous) => {
+            const next: Record<number, boolean> = {};
+
+            Object.entries(previous).forEach(([key, visible]) => {
+                const oldIndex = Number(key);
+
+                if (oldIndex < index) {
+                    next[oldIndex] = visible;
+                } else if (oldIndex > index) {
+                    next[oldIndex - 1] = visible;
+                }
+            });
+
+            return next;
+        });
+    }
+
     function validateForm(): boolean {
         if (!values.name.trim()) {
             Alert.alert('Missing Name', 'Enter a character name.');
             return false;
         }
 
+        if (values.classLevels.length === 0) {
+            Alert.alert(
+                'Missing Class',
+                'Add at least one class and enter its level.',
+            );
+            return false;
+        }
+
         const numericFields: [string, string, number, number][] = [
             ...ABILITIES.map(
-                ({ label, key }) => [label, values.abilities[key], 1, 30] as [
-                    string,
-                    string,
-                    number,
-                    number,
-                ],
+                ({ label, key }) =>
+                    [label, values.abilities[key], 1, 30] as [
+                        string,
+                        string,
+                        number,
+                        number,
+                    ],
             ),
             ['Maximum HP', values.maxHp, 0, 999],
             ['Current HP', values.currentHp, 0, 999],
@@ -145,16 +252,51 @@ export default function CharacterForm({
             }
         }
 
-        const level = Number(values.level);
+        for (const entry of values.classLevels) {
+            if (!entry.characterClass.trim()) {
+                Alert.alert(
+                    'Missing Class',
+                    'Select a class for every class entry.',
+                );
+                return false;
+            }
 
-        if (
-            !Number.isInteger(level) ||
-            level < 1 ||
-            level > MAX_CHARACTER_LEVEL
-        ) {
+            const classLevel = Number(entry.level);
+
+            if (
+                !Number.isInteger(classLevel) ||
+                classLevel < 1 ||
+                classLevel > MAX_CHARACTER_LEVEL
+            ) {
+                Alert.alert(
+                    'Invalid Class Level',
+                    `Each class level must be between 1 and ${MAX_CHARACTER_LEVEL}.`,
+                );
+                return false;
+            }
+        }
+
+        const totalLevel = values.classLevels.reduce(
+            (total, entry) => total + Number(entry.level),
+            0,
+        );
+
+        if (totalLevel > MAX_CHARACTER_LEVEL) {
             Alert.alert(
-                'Invalid Level',
-                `Level must be between 1 and ${MAX_CHARACTER_LEVEL}.`,
+                'Invalid Total Level',
+                `Combined class levels cannot exceed ${MAX_CHARACTER_LEVEL}.`,
+            );
+            return false;
+        }
+
+        const normalizedClasses = values.classLevels.map((entry) =>
+            entry.characterClass.trim().toLocaleLowerCase(),
+        );
+
+        if (new Set(normalizedClasses).size !== normalizedClasses.length) {
+            Alert.alert(
+                'Duplicate Class',
+                'Choose each class only once and put its total levels in that entry.',
             );
             return false;
         }
@@ -171,7 +313,11 @@ export default function CharacterForm({
             ...values,
             name: values.name.trim(),
             background: values.background.trim(),
-            level: String(level),
+            classLevels: values.classLevels.map((entry) => ({
+                characterClass: entry.characterClass.trim(),
+                subClass: entry.subClass ? entry.subClass.trim() : '',
+                level: String(Number(entry.level)),
+            })),
         });
 
         return true;
@@ -206,12 +352,20 @@ export default function CharacterForm({
                         { backgroundColor: colors.background },
                     ]}>
                     <View style={styles.modalHeader}>
-                        <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        <Text
+                            style={[
+                                styles.modalTitle,
+                                { color: colors.text },
+                            ]}>
                             {title}
                         </Text>
 
                         <Pressable onPress={onClose} hitSlop={12}>
-                            <Text style={[styles.closeText, { color: colors.accent }]}>
+                            <Text
+                                style={[
+                                    styles.closeText,
+                                    { color: colors.accent },
+                                ]}>
                                 Close
                             </Text>
                         </Pressable>
@@ -237,11 +391,18 @@ export default function CharacterForm({
                                             borderColor: colors.border,
                                         },
                                     ]}>
-                                    <Text style={[styles.optionText, { color: colors.text }]}>
+                                    <Text
+                                        style={[
+                                            styles.optionText,
+                                            { color: colors.text },
+                                        ]}>
                                         {option}
                                     </Text>
+
                                     {selected && (
-                                        <Text style={{ color: colors.accent }}>✓</Text>
+                                        <Text style={{ color: colors.accent }}>
+                                            ✓
+                                        </Text>
                                     )}
                                 </Pressable>
                             );
@@ -254,20 +415,31 @@ export default function CharacterForm({
 
     return (
         <KeyboardAvoidingView
-            style={[styles.screen, { backgroundColor: colors.background }]}
+            style={[
+                styles.screen,
+                { backgroundColor: colors.background },
+            ]}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.content}>
                 <Text style={[styles.eyebrow, { color: colors.accent }]}>
-                    {mode === 'create' ? 'BEGIN YOUR ADVENTURE' : 'UPDATE YOUR HERO'}
+                    {mode === 'create'
+                        ? 'BEGIN YOUR ADVENTURE'
+                        : 'UPDATE YOUR HERO'}
                 </Text>
 
                 <Text style={[styles.title, { color: colors.text }]}>
-                    {mode === 'create' ? 'Create Character' : 'Edit Character'}
+                    {mode === 'create'
+                        ? 'Create Character'
+                        : 'Edit Character'}
                 </Text>
 
-                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                <Text
+                    style={[
+                        styles.subtitle,
+                        { color: colors.textSecondary },
+                    ]}>
                     {mode === 'create'
                         ? 'Define your hero before entering the realm.'
                         : 'Update your character details.'}
@@ -305,59 +477,176 @@ export default function CharacterForm({
                             }}>
                             {values.species || 'Select species'}
                         </Text>
-                        <Text style={{ color: colors.textSecondary }}>⌄</Text>
+
+                        <Text style={{ color: colors.textSecondary }}>
+                            ⌄
+                        </Text>
                     </Pressable>
                 </Field>
 
-                <Field label="Class" colors={colors}>
-                    <Pressable
-                        onPress={() => setClassModalVisible(true)}
+                <SectionTitle title="Classes" colors={colors} />
+
+                <Text
+                    style={[
+                        styles.helper,
+                        { color: colors.textSecondary },
+                    ]}>
+                    Add each class and its level. Add a subclass when your
+                    character qualifies for one.
+                </Text>
+
+                {values.classLevels.map((entry, index) => (
+                    <View
+                        key={index}
                         style={[
-                            styles.picker,
+                            styles.classCard,
                             {
-                                backgroundColor: colors.backgroundElement,
                                 borderColor: colors.border,
+                                backgroundColor: colors.backgroundElement,
                             },
                         ]}>
-                        <Text
-                            style={{
-                                color: values.characterClass
-                                    ? colors.text
-                                    : colors.textSecondary,
-                            }}>
-                            {values.characterClass || 'Select class'}
-                        </Text>
-                        <Text style={{ color: colors.textSecondary }}>⌄</Text>
-                    </Pressable>
-                </Field>
-                <Field label="Subclass" colors={colors}>
-                    <TextInput
-                        value={values.subClass}
-                        onChangeText={(value) => updateField('subClass', value)}
-                        placeholder="Enter Subclass"
-                        placeholderTextColor={colors.textSecondary}
-                        style={inputStyle}
-                        maxLength={100}
-                        returnKeyType="next"
-                    />
-                </Field>
+                        <View style={styles.classCardHeader}>
+                            <Text
+                                style={[
+                                    styles.classCardTitle,
+                                    { color: colors.text },
+                                ]}>
+                                Class {index + 1}
+                            </Text>
 
-                <Field label="Level" colors={colors}>
-                    <TextInput
-                        value={values.level}
-                        onChangeText={(value) =>
-                            updateField('level', value.replace(/[^0-9]/g, ''))
-                        }
-                        keyboardType="number-pad"
-                        style={inputStyle}
-                        selectTextOnFocus
-                    />
-                </Field>
+                            <Pressable
+                                onPress={() => removeClass(index)}
+                                hitSlop={8}>
+                                <Text style={styles.removeText}>Remove</Text>
+                            </Pressable>
+                        </View>
+
+                        <Field label="Class" colors={colors}>
+                            <Pressable
+                                onPress={() => {
+                                    setSelectedClassIndex(index);
+                                    setClassModalVisible(true);
+                                }}
+                                style={[
+                                    styles.picker,
+                                    {
+                                        backgroundColor: colors.background,
+                                        borderColor: colors.border,
+                                    },
+                                ]}>
+                                <Text
+                                    style={{
+                                        color: entry.characterClass
+                                            ? colors.text
+                                            : colors.textSecondary,
+                                    }}>
+                                    {entry.characterClass || 'Select class'}
+                                </Text>
+
+                                <Text style={{ color: colors.textSecondary }}>
+                                    ⌄
+                                </Text>
+                            </Pressable>
+                        </Field>
+
+                        <Field label="Class Level" colors={colors}>
+                            <TextInput
+                                value={entry.level}
+                                onChangeText={(value) =>
+                                    updateClassLevel(
+                                        index,
+                                        'level',
+                                        value.replace(/[^0-9]/g, ''),
+                                    )
+                                }
+                                keyboardType="number-pad"
+                                placeholder="1"
+                                placeholderTextColor={colors.textSecondary}
+                                style={inputStyle}
+                                maxLength={2}
+                            />
+                        </Field>
+
+                        {subclassVisible[index] ? (
+                            <>
+                                <Field label="Subclass" colors={colors}>
+                                    <TextInput
+                                        value={entry.subClass}
+                                        onChangeText={(value) =>
+                                            updateClassLevel(
+                                                index,
+                                                'subClass',
+                                                value,
+                                            )
+                                        }
+                                        placeholder="Enter subclass"
+                                        placeholderTextColor={
+                                            colors.textSecondary
+                                        }
+                                        style={inputStyle}
+                                        maxLength={100}
+                                    />
+                                </Field>
+
+                                <Pressable
+                                    onPress={() => removeSubclass(index)}
+                                    style={styles.subclassAction}>
+                                    <Text
+                                        style={[
+                                            styles.subclassActionText,
+                                            { color: colors.textSecondary },
+                                        ]}>
+                                        Remove Subclass
+                                    </Text>
+                                </Pressable>
+                            </>
+                        ) : (
+                            <Pressable
+                                onPress={() => addSubclass(index)}
+                                style={[
+                                    styles.addSubclassButton,
+                                    {
+                                        borderColor: colors.border,
+                                        backgroundColor: colors.background,
+                                    },
+                                ]}>
+                                <Text
+                                    style={{
+                                        color: colors.accent,
+                                        fontWeight: '700',
+                                    }}>
+                                    + Add Subclass
+                                </Text>
+                            </Pressable>
+                        )}
+                    </View>
+                ))}
+
+                <Pressable
+                    onPress={addClass}
+                    style={[
+                        styles.addClassButton,
+                        {
+                            borderColor: colors.border,
+                            backgroundColor: colors.backgroundElement,
+                        },
+                    ]}>
+                    <Text
+                        style={{
+                            color: colors.accent,
+                            fontWeight: '700',
+                            fontSize: 15,
+                        }}>
+                        + Add Class
+                    </Text>
+                </Pressable>
 
                 <Field label="Background" colors={colors}>
                     <TextInput
                         value={values.background}
-                        onChangeText={(value) => updateField('background', value)}
+                        onChangeText={(value) =>
+                            updateField('background', value)
+                        }
                         placeholder="e.g. Soldier, Sage, Criminal"
                         placeholderTextColor={colors.textSecondary}
                         style={inputStyle}
@@ -367,19 +656,30 @@ export default function CharacterForm({
 
                 <SectionTitle title="Ability Scores" colors={colors} />
 
-                <Text style={[styles.helper, { color: colors.textSecondary }]}>
+                <Text
+                    style={[
+                        styles.helper,
+                        { color: colors.textSecondary },
+                    ]}>
                     Enter a score from 1 to 30 for each ability.
                 </Text>
 
                 <View style={styles.abilityGrid}>
                     {ABILITIES.map(({ label, key }) => (
                         <View key={key} style={styles.abilityItem}>
-                            <Text style={[styles.abilityLabel, { color: colors.text }]}>
+                            <Text
+                                style={[
+                                    styles.abilityLabel,
+                                    { color: colors.text },
+                                ]}>
                                 {label}
                             </Text>
+
                             <TextInput
                                 value={values.abilities[key]}
-                                onChangeText={(value) => updateAbility(key, value)}
+                                onChangeText={(value) =>
+                                    updateAbility(key, value)
+                                }
                                 keyboardType="number-pad"
                                 placeholder="—"
                                 placeholderTextColor={colors.textSecondary}
@@ -399,7 +699,10 @@ export default function CharacterForm({
                             <TextInput
                                 value={values.maxHp}
                                 onChangeText={(value) =>
-                                    updateField('maxHp', value.replace(/[^0-9]/g, ''))
+                                    updateField(
+                                        'maxHp',
+                                        value.replace(/[^0-9]/g, ''),
+                                    )
                                 }
                                 keyboardType="number-pad"
                                 placeholder="—"
@@ -415,7 +718,10 @@ export default function CharacterForm({
                             <TextInput
                                 value={values.currentHp}
                                 onChangeText={(value) =>
-                                    updateField('currentHp', value.replace(/[^0-9]/g, ''))
+                                    updateField(
+                                        'currentHp',
+                                        value.replace(/[^0-9]/g, ''),
+                                    )
                                 }
                                 keyboardType="number-pad"
                                 placeholder="—"
@@ -431,7 +737,10 @@ export default function CharacterForm({
                     <TextInput
                         value={values.speed}
                         onChangeText={(value) =>
-                            updateField('speed', value.replace(/[^0-9]/g, ''))
+                            updateField(
+                                'speed',
+                                value.replace(/[^0-9]/g, ''),
+                            )
                         }
                         keyboardType="number-pad"
                         placeholder="—"
@@ -448,12 +757,18 @@ export default function CharacterForm({
                         { backgroundColor: colors.accent },
                     ]}>
                     <Text style={styles.primaryButtonText}>
-                        {mode === 'create' ? 'Create Character' : 'Save Changes'}
+                        {mode === 'create'
+                            ? 'Create Character'
+                            : 'Save Changes'}
                     </Text>
                 </Pressable>
 
                 <Pressable onPress={onCancel} style={styles.cancelButton}>
-                    <Text style={[styles.cancelText, { color: colors.textSecondary }]}>
+                    <Text
+                        style={[
+                            styles.cancelText,
+                            { color: colors.textSecondary },
+                        ]}>
                         Cancel
                     </Text>
                 </Pressable>
@@ -472,9 +787,22 @@ export default function CharacterForm({
                 classModalVisible,
                 'Choose Class',
                 CHARACTER_CLASSES,
-                values.characterClass,
-                (value) => updateField('characterClass', value),
-                () => setClassModalVisible(false),
+                selectedClassIndex !== null
+                    ? values.classLevels[selectedClassIndex]?.characterClass ?? ''
+                    : '',
+                (value) => {
+                    if (selectedClassIndex !== null) {
+                        updateClassLevel(
+                            selectedClassIndex,
+                            'characterClass',
+                            value,
+                        );
+                    }
+                },
+                () => {
+                    setClassModalVisible(false);
+                    setSelectedClassIndex(null);
+                },
             )}
         </KeyboardAvoidingView>
     );
@@ -491,7 +819,10 @@ function SectionTitle({
         <Text
             style={[
                 styles.sectionTitle,
-                { color: colors.text, borderBottomColor: colors.border },
+                {
+                    color: colors.text,
+                    borderBottomColor: colors.border,
+                },
             ]}>
             {title}
         </Text>
@@ -509,7 +840,11 @@ function Field({
 }) {
     return (
         <View style={styles.field}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
+            <Text
+                style={[
+                    styles.label,
+                    { color: colors.textSecondary },
+                ]}>
                 {label}
             </Text>
             {children}
@@ -542,7 +877,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
     },
     field: { marginBottom: Spacing.three },
-    label: { fontSize: 13, fontWeight: '600', marginBottom: Spacing.two },
+    label: {
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: Spacing.two,
+    },
     input: {
         minHeight: 48,
         borderWidth: 1,
@@ -560,6 +899,47 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     helper: { fontSize: 12, marginBottom: Spacing.three },
+    classCard: {
+        padding: 12,
+        marginBottom: Spacing.three,
+        borderWidth: 1,
+        borderRadius: 10,
+    },
+    classCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: Spacing.three,
+    },
+    classCardTitle: { fontSize: 16, fontWeight: '700' },
+    removeText: { color: '#D9534F', fontWeight: '700' },
+    addSubclassButton: {
+        minHeight: 42,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: Spacing.two,
+    },
+    subclassAction: {
+        alignSelf: 'flex-start',
+        paddingVertical: Spacing.two,
+        marginBottom: Spacing.two,
+    },
+    subclassActionText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    addClassButton: {
+        minHeight: 48,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: Spacing.three,
+    },
     abilityGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -573,7 +953,10 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         marginBottom: Spacing.two,
     },
-    abilityInput: { paddingHorizontal: 4, textAlign: 'center' },
+    abilityInput: {
+        paddingHorizontal: 4,
+        textAlign: 'center',
+    },
     combatGrid: { flexDirection: 'row', gap: Spacing.three },
     combatItem: { flex: 1 },
     primaryButton: {
@@ -583,10 +966,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: Spacing.four,
     },
-    primaryButtonText: { color: '#11100F', fontSize: 16, fontWeight: '700' },
-    cancelButton: { alignItems: 'center', paddingVertical: Spacing.three },
+    primaryButtonText: {
+        color: '#11100F',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    cancelButton: {
+        alignItems: 'center',
+        paddingVertical: Spacing.three,
+    },
     cancelText: { fontSize: 14, fontWeight: '600' },
-    modalContainer: { flex: 1, paddingTop: Spacing.four },
+    modalContainer: {
+        flex: 1,
+        paddingTop: Spacing.four,
+    },
     modalHeader: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -596,7 +989,10 @@ const styles = StyleSheet.create({
     },
     modalTitle: { fontSize: 22, fontWeight: '700' },
     closeText: { fontSize: 15, fontWeight: '600' },
-    modalList: { padding: Spacing.three, gap: Spacing.two },
+    modalList: {
+        padding: Spacing.three,
+        gap: Spacing.two,
+    },
     option: {
         minHeight: 48,
         borderWidth: 1,

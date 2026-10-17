@@ -78,5 +78,7 @@ export function spellSaveDc(
   spellcastingScore: number,
   proficiency: number,
 ): number {
+  
   return 8 + abilityModifier(spellcastingScore) + proficiency;
 }
+

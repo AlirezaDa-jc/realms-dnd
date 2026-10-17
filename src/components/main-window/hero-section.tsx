@@ -1,8 +1,8 @@
-
-import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/theme';
+import { Character } from '@/models/character';
 import { RecoveryType } from '@/models/resource';
 import { BlurView } from 'expo-blur';
+import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
     Alert,
@@ -16,40 +16,23 @@ import {
 } from 'react-native';
 
 type HeroSectionProps = {
-    name: string;
-    species: string;
-    characterClass: string;
-    subClass: string;
-    level: number;
-    background: string;
-    traits: string[];
-    ideals: string;
-    bonds: string;
-    flaws: string;
-    onChangeText: (field: 'ideals' | 'bonds' | 'flaws', value: string) => void;
+    character: Character;
+    onChangeText: (
+        field: 'ideals' | 'bonds' | 'flaws',
+        value: string,
+    ) => void;
     onAddTrait: (trait: string) => void;
     onRemoveTrait: (trait: string) => void;
-    portraitPath?: string | null;
     onUploadPortrait: (uri: string) => void | Promise<void>;
     onTakeRest: (restType: RecoveryType) => void | Promise<void>;
     horizontal?: boolean;
 };
 
 export default function HeroSection({
-    name,
-    species,
-    characterClass,
-    subClass,
-    level,
-    background,
-    traits,
-    ideals,
-    bonds,
-    flaws,
+    character,
     onChangeText,
     onAddTrait,
     onRemoveTrait,
-    portraitPath,
     onUploadPortrait,
     onTakeRest,
     horizontal = true,
@@ -81,7 +64,7 @@ export default function HeroSection({
                 </Text>
 
                 <TextInput
-                    value={value}
+                    value={value ?? ''}
                     onChangeText={(text) => onChangeText(field, text)}
                     placeholder={placeholder}
                     placeholderTextColor={colors.textSecondary}
@@ -105,7 +88,6 @@ export default function HeroSection({
             </View>
         );
     }
-
 
     async function handleUploadPortrait() {
         try {
@@ -142,6 +124,37 @@ export default function HeroSection({
         }
     }
 
+    function addTrait() {
+        const trait = newTrait.trim();
+
+        if (!trait) {
+            Alert.alert(
+                'Invalid Trait',
+                'Trait name cannot be empty.',
+            );
+            return;
+        }
+
+        const duplicate = (character.traits ?? []).some(
+            (item) =>
+                item.toLocaleLowerCase() === trait.toLocaleLowerCase(),
+        );
+
+        if (duplicate) {
+            Alert.alert(
+                'Duplicate Trait',
+                'This trait already exists.',
+            );
+            return;
+        }
+
+        onAddTrait(trait);
+        setTraitModalVisible(false);
+        setNewTrait('');
+    }
+
+    const classLevels = character.classLevels ?? [];
+
     return (
         <BlurView
             intensity={scheme === 'dark' ? 35 : 55}
@@ -170,19 +183,21 @@ export default function HeroSection({
                     CHARACTER
                 </Text>
 
+                {/* Identity and portrait */}
                 <View style={{ gap: 5 }}>
                     <View
                         style={{
-                            flexDirection: 'row',
+                            flexDirection: horizontal ? 'row' : 'column',
                             alignItems: 'flex-start',
                             gap: 16,
                             width: '100%',
                         }}
                     >
-                        {/* Left: Portrait */}
                         <View
                             style={{
-                                width: 110,
+                                width: horizontal ? 110 : '100%',
+                                maxWidth: horizontal ? 110 : 240,
+                                alignSelf: horizontal ? 'auto' : 'center',
                                 flexShrink: 0,
                                 gap: 8,
                             }}
@@ -190,22 +205,29 @@ export default function HeroSection({
                             <View
                                 style={{
                                     width: '100%',
-                                    aspectRatio: 3 / 7,
+                                    aspectRatio: 3 / 6,
                                     borderRadius: 12,
                                     overflow: 'hidden',
                                     backgroundColor:
-                                        scheme === 'dark' ? '#252C37' : '#E8DFD0',
+                                        scheme === 'dark'
+                                            ? '#252C37'
+                                            : '#E8DFD0',
                                     borderWidth: 1,
                                     borderColor: colors.border,
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                 }}
                             >
-                                {portraitPath ? (
+                                {character.portraitPath ? (
                                     <Image
-                                        source={{ uri: portraitPath }}
+                                        source={{
+                                            uri: character.portraitPath,
+                                        }}
                                         resizeMode="cover"
-                                        style={{ width: '100%', height: '100%' }}
+                                        style={{
+                                            width: '100%',
+                                            height: '100%',
+                                        }}
                                     />
                                 ) : (
                                     <Text
@@ -220,12 +242,15 @@ export default function HeroSection({
                             </View>
 
                             <Pressable
-                                onPress={() => void handleUploadPortrait()}
+                                onPress={() =>
+                                    void handleUploadPortrait()
+                                }
                                 style={{
                                     padding: 8,
                                     alignItems: 'center',
                                     borderRadius: 9,
-                                    backgroundColor: colors.backgroundSelected,
+                                    backgroundColor:
+                                        colors.backgroundSelected,
                                 }}
                             >
                                 <Text
@@ -240,67 +265,35 @@ export default function HeroSection({
                             </Pressable>
                         </View>
 
-                        {/* Right: Character identity */}
-                        <View
-                            style={{
-                                flex: 1,
-                            }}
-                        >
-                            <View
+                        <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    gap: 8,
+                                    color: colors.text,
+                                    fontSize: 27,
+                                    fontWeight: '800',
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        color: colors.text,
-                                        fontSize: 27,
-                                        fontWeight: '800',
-                                    }}
-                                >
-                                    {name || 'Unnamed Hero'}
-                                </Text>
+                                {character.name || 'Unnamed Hero'}
+                            </Text>
 
-                                <Text
-                                    style={{
-                                        color: colors.textSecondary,
-                                        fontSize: 14,
-                                    }}
-                                >
-                                    {species || 'Unknown Species'}
-                                </Text>
-
-                                <Text
-                                    style={{
-                                        color: colors.textSecondary,
-                                        fontSize: 14,
-                                    }}
-                                >
-                                    {characterClass || 'Unknown Class'}
-                                </Text>
-
-                                {subClass && <Text
-                                    style={{
-                                        color: colors.textSecondary,
-                                        fontSize: 14,
-                                    }}
-                                >
-                                    {subClass}
-                                </Text>}
-                            </View>
+                            <Text
+                                style={{
+                                    color: colors.textSecondary,
+                                    fontSize: 14,
+                                }}
+                            >
+                                {character.species || 'Unknown Species'}
+                            </Text>
 
                             <View
                                 style={{
                                     flexDirection: 'column',
                                     gap: 12,
-                                    marginTop: 18
+                                    marginTop: 18,
                                 }}
                             >
                                 <View
                                     style={{
-                                        flex: 1,
                                         padding: 14,
                                         borderRadius: 12,
                                         backgroundColor:
@@ -319,8 +312,9 @@ export default function HeroSection({
                                             letterSpacing: 1.5,
                                         }}
                                     >
-                                        LEVEL
+                                        TOTAL LEVEL
                                     </Text>
+
                                     <Text
                                         style={{
                                             color: colors.accent,
@@ -329,15 +323,19 @@ export default function HeroSection({
                                             marginTop: 4,
                                         }}
                                     >
-                                        {String(level).padStart(2, '0')}
+                                        {String(character.totalLevel).padStart(
+                                            2,
+                                            '0',
+                                        )}
                                     </Text>
                                 </View>
+
                                 <View
                                     style={{
-                                        flex: 2,
                                         padding: 14,
                                         borderRadius: 12,
-                                        backgroundColor: 'rgba(128,128,128,0.06)',
+                                        backgroundColor:
+                                            'rgba(128,128,128,0.06)',
                                         borderWidth: 1,
                                         borderColor: colors.border,
                                         justifyContent: 'center',
@@ -354,6 +352,7 @@ export default function HeroSection({
                                     >
                                         BACKGROUND
                                     </Text>
+
                                     <Text
                                         style={{
                                             color: colors.text,
@@ -361,7 +360,8 @@ export default function HeroSection({
                                             fontWeight: '600',
                                         }}
                                     >
-                                        {background || 'Not selected'}
+                                        {character.background ||
+                                            'Not selected'}
                                     </Text>
                                 </View>
                             </View>
@@ -369,10 +369,203 @@ export default function HeroSection({
                     </View>
                 </View>
 
+                {/* Class cards */}
+                <View style={{ gap: 10 }}>
+                    <Text
+                        style={{
+                            color: colors.accent,
+                            fontSize: 11,
+                            fontWeight: '800',
+                            letterSpacing: 1.5,
+                        }}
+                    >
+                        CLASSES
+                    </Text>
 
+                    {classLevels.length === 0 ? (
+                        <Text
+                            style={{
+                                color: colors.textSecondary,
+                                fontSize: 12,
+                            }}
+                        >
+                            No classes added yet.
+                        </Text>
+                    ) : (
+                        classLevels.map((entry, index) => {
+                            const spellSaveDc =
+                                character.spellSaveDcForClass(
+                                    entry.characterClass,
+                                );
 
+                            const spellAttackBonus =
+                                character.spellAttackBonusForClass(
+                                    entry.characterClass,
+                                );
 
+                            return (
+                                <View
+                                    key={`${entry.characterClass}-${index}`}
+                                    style={{
+                                        width: '100%',
+                                        padding: 14,
+                                        gap: 12,
+                                        borderRadius: 12,
+                                        backgroundColor:
+                                            colors.backgroundElement,
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
+                                    }}
+                                >
+                                    <View
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: 12,
+                                        }}
+                                    >
+                                        <View style={{ flex: 1, gap: 4 }}>
+                                            <Text
+                                                style={{
+                                                    color: colors.text,
+                                                    fontSize: 17,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                {entry.characterClass}
+                                            </Text>
 
+                                            {entry.subClass ? (
+                                                <Text
+                                                    style={{
+                                                        color: colors.textSecondary,
+                                                        fontSize: 12,
+                                                    }}
+                                                >
+                                                    {entry.subClass}
+                                                </Text>
+                                            ) : null}
+                                        </View>
+
+                                        <View
+                                            style={{
+                                                paddingHorizontal: 12,
+                                                paddingVertical: 8,
+                                                borderRadius: 9,
+                                                backgroundColor:
+                                                    scheme === 'dark'
+                                                        ? 'rgba(214,173,96,0.10)'
+                                                        : 'rgba(139,100,44,0.08)',
+                                                borderWidth: 1,
+                                                borderColor: colors.border,
+                                                alignItems: 'center',
+                                                minWidth: 76,
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 9,
+                                                    fontWeight: '800',
+                                                    letterSpacing: 1,
+                                                }}
+                                            >
+                                                LEVEL
+                                            </Text>
+
+                                            <Text
+                                                style={{
+                                                    color: colors.accent,
+                                                    fontSize: 24,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                {String(entry.level).padStart(
+                                                    2,
+                                                    '0',
+                                                )}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View
+                                        style={{
+                                            flexDirection: 'row',
+                                            gap: 10,
+                                        }}
+                                    >
+                                        <View
+                                            style={{
+                                                flex: 1,
+                                                padding: 10,
+                                                gap: 5,
+                                                borderRadius: 9,
+                                                backgroundColor:
+                                                    'rgba(128,128,128,0.06)',
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 10,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                SPELL SAVE DC
+                                            </Text>
+
+                                            <Text
+                                                style={{
+                                                    color: colors.text,
+                                                    fontSize: 22,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                {spellSaveDc ?? '—'}
+                                            </Text>
+                                        </View>
+
+                                        <View
+                                            style={{
+                                                flex: 1,
+                                                padding: 10,
+                                                gap: 5,
+                                                borderRadius: 9,
+                                                backgroundColor:
+                                                    'rgba(128,128,128,0.06)',
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 10,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                SPELL ATTACK
+                                            </Text>
+
+                                            <Text
+                                                style={{
+                                                    color: colors.text,
+                                                    fontSize: 22,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                {spellAttackBonus == null
+                                                    ? '—'
+                                                    : `${spellAttackBonus >= 0 ? '+' : ''}${spellAttackBonus}`}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            );
+                        })
+                    )}
+                </View>
+
+                {/* Traits */}
                 <View style={{ gap: 12 }}>
                     <View
                         style={{
@@ -382,16 +575,34 @@ export default function HeroSection({
                         }}
                     >
                         <Pressable
-                            onPress={() => setExpandedTraits((value) => !value)}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                            onPress={() =>
+                                setExpandedTraits((value) => !value)
+                            }
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
                         >
-                            <Text style={{ color: colors.text, fontWeight: '800' }}>
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontWeight: '800',
+                                }}
+                            >
                                 TRAITS
                             </Text>
-                            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+
+                            <Text
+                                style={{
+                                    color: colors.textSecondary,
+                                    fontSize: 12,
+                                }}
+                            >
                                 {expandedTraits ? '⌃' : '⌄'}
                             </Text>
                         </Pressable>
+
                         <Pressable
                             onPress={() => {
                                 setNewTrait('');
@@ -418,12 +629,17 @@ export default function HeroSection({
 
                     {expandedTraits && (
                         <View style={{ gap: 7 }}>
-                            {traits.length === 0 ? (
-                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                            {(character.traits ?? []).length === 0 ? (
+                                <Text
+                                    style={{
+                                        color: colors.textSecondary,
+                                        fontSize: 12,
+                                    }}
+                                >
                                     No traits added yet.
                                 </Text>
                             ) : (
-                                traits.map((trait, index) => (
+                                character.traits.map((trait, index) => (
                                     <View
                                         key={`${trait}-${index}`}
                                         style={{
@@ -432,20 +648,35 @@ export default function HeroSection({
                                             gap: 10,
                                             padding: 10,
                                             borderRadius: 9,
-                                            backgroundColor: 'rgba(128,128,128,0.06)',
+                                            backgroundColor:
+                                                'rgba(128,128,128,0.06)',
                                             borderWidth: 1,
                                             borderColor: colors.border,
                                         }}
                                     >
-                                        <Text style={{ color: colors.text, flex: 1, fontSize: 13 }}>
+                                        <Text
+                                            style={{
+                                                color: colors.text,
+                                                flex: 1,
+                                                fontSize: 13,
+                                            }}
+                                        >
                                             {trait}
                                         </Text>
+
                                         <Pressable
-                                            onPress={() => onRemoveTrait(trait)}
+                                            onPress={() =>
+                                                onRemoveTrait(trait)
+                                            }
                                             accessibilityRole="button"
                                             accessibilityLabel={`Remove ${trait}`}
                                         >
-                                            <Text style={{ color: colors.textSecondary, fontSize: 17 }}>
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 17,
+                                                }}
+                                            >
                                                 ×
                                             </Text>
                                         </Pressable>
@@ -466,23 +697,24 @@ export default function HeroSection({
                 {renderTextField(
                     'IDEALS',
                     'ideals',
-                    ideals,
+                    character.ideals,
                     'What principles guide your character?',
                 )}
 
                 {renderTextField(
                     'BONDS',
                     'bonds',
-                    bonds,
+                    character.bonds,
                     'What matters most to your character?',
                 )}
 
                 {renderTextField(
                     'FLAWS',
                     'flaws',
-                    flaws,
+                    character.flaws,
                     'What weaknesses does your character have?',
                 )}
+
                 <View
                     style={{
                         height: 1,
@@ -490,6 +722,7 @@ export default function HeroSection({
                     }}
                 />
 
+                {/* Rest actions */}
                 <View style={{ gap: 12 }}>
                     <View style={{ gap: 4 }}>
                         <Text
@@ -521,7 +754,9 @@ export default function HeroSection({
                         }}
                     >
                         <Pressable
-                            onPress={() => onTakeRest('short_rest')}
+                            onPress={() =>
+                                void onTakeRest('short_rest')
+                            }
                             style={{
                                 flex: 1,
                                 minWidth: 0,
@@ -589,7 +824,8 @@ export default function HeroSection({
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: 6,
-                                backgroundColor: colors.backgroundSelected,
+                                backgroundColor:
+                                    colors.backgroundSelected,
                                 borderWidth: 1,
                                 borderColor: colors.accent,
                             }}
@@ -618,6 +854,8 @@ export default function HeroSection({
                     </View>
                 </View>
             </View>
+
+            {/* Add trait modal */}
             <Modal
                 visible={traitModalVisible}
                 transparent
@@ -673,35 +911,7 @@ export default function HeroSection({
                             placeholderTextColor={colors.textSecondary}
                             autoFocus
                             returnKeyType="done"
-                            onSubmitEditing={() => {
-                                const trait = newTrait.trim();
-
-                                if (!trait) {
-                                    Alert.alert(
-                                        'Invalid Trait',
-                                        'Trait name cannot be empty.',
-                                    );
-                                    return;
-                                }
-
-                                const duplicate = traits.some(
-                                    item =>
-                                        item.toLocaleLowerCase() ===
-                                        trait.toLocaleLowerCase(),
-                                );
-
-                                if (duplicate) {
-                                    Alert.alert(
-                                        'Duplicate Trait',
-                                        'This trait already exists.',
-                                    );
-                                    return;
-                                }
-
-                                onAddTrait(trait);
-                                setTraitModalVisible(false);
-                                setNewTrait('');
-                            }}
+                            onSubmitEditing={addTrait}
                             style={{
                                 padding: 12,
                                 borderWidth: 1,
@@ -739,40 +949,13 @@ export default function HeroSection({
                             </Pressable>
 
                             <Pressable
-                                onPress={() => {
-                                    const trait = newTrait.trim();
-
-                                    if (!trait) {
-                                        Alert.alert(
-                                            'Invalid Trait',
-                                            'Trait name cannot be empty.',
-                                        );
-                                        return;
-                                    }
-
-                                    const duplicate = traits.some(
-                                        item =>
-                                            item.toLocaleLowerCase() ===
-                                            trait.toLocaleLowerCase(),
-                                    );
-
-                                    if (duplicate) {
-                                        Alert.alert(
-                                            'Duplicate Trait',
-                                            'This trait already exists.',
-                                        );
-                                        return;
-                                    }
-
-                                    onAddTrait(trait);
-                                    setTraitModalVisible(false);
-                                    setNewTrait('');
-                                }}
+                                onPress={addTrait}
                                 style={{
                                     paddingHorizontal: 14,
                                     paddingVertical: 10,
                                     borderRadius: 9,
-                                    backgroundColor: colors.backgroundSelected,
+                                    backgroundColor:
+                                        colors.backgroundSelected,
                                 }}
                             >
                                 <Text

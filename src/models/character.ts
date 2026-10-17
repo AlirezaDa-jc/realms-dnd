@@ -12,11 +12,13 @@ import {
 } from '@/rules/dnd5e-2024';
 
 import { ClassAction } from './class-action';
+import type { CharacterClassLevel } from './class-level';
 import { EquipmentItem } from './equipment';
 import { CharacterResource, type RecoveryType } from './resource';
 import { SpellSlot } from './spell-slot';
 import { Spellbook } from './spellbook';
 import { StatBonus } from './stat-bonus';
+import { Spell } from './spell';
 
 export type { Ability, ProficiencyLevel };
 
@@ -67,10 +69,15 @@ export class Character {
     id: string;
     name: string;
     species: string;
+    background: string;
+
+    // Legacy primary-class fields. Keep these for compatibility.
     characterClass: string;
     subClass: string;
     level: number;
-    background: string;
+
+    // New multiclass data.
+    classLevels: CharacterClassLevel[];
 
     // Armor
     baseArmorClass: number;
@@ -132,12 +139,40 @@ export class Character {
         this.id = data.id ?? createCharacterId();
 
         // Values supplied by the form
+        // Identity
         this.name = data.name;
         this.species = data.species;
-        this.characterClass = data.characterClass;
-        this.subClass = data.subClass;
-        this.level = data.level;
         this.background = data.background;
+
+        // Multiclass data.
+        // Old saved characters without classLevels become single-class characters.
+        this.classLevels =
+            data.classLevels && data.classLevels.length > 0
+                ? data.classLevels.map((entry) => ({
+                    characterClass: entry.characterClass,
+                    subClass: entry.subClass ?? '',
+                    level: entry.level,
+                    spellcastingAbility: entry.spellcastingAbility,
+                }))
+                : [
+                    {
+                        characterClass: data.characterClass,
+                        subClass: data.subClass ?? '',
+                        level: data.level,
+                        spellcastingAbility: data.spellcastingAbility,
+                    },
+                ];
+
+        // Keep legacy fields synchronized with the first class.
+        this.characterClass = this.classLevels[0].characterClass;
+        this.subClass = this.classLevels[0].subClass;
+
+        // Total character level is the sum of all class levels.
+        this.level = this.classLevels.reduce(
+            (total, entry) => total + entry.level,
+            0,
+        );
+
         this.abilities = { ...data.abilities };
         this.maxHp = data.maxHp;
         this.currentHp = data.currentHp;
@@ -206,9 +241,39 @@ export class Character {
     }
 
     validate(): void {
-        if (!Number.isInteger(this.level) || this.level < 1 || this.level > 20) {
-            throw new Error('Level must be between 1 and 20.');
+        const totalLevel = this.totalLevel;
+
+        if (
+            this.classLevels.length === 0 ||
+            this.classLevels.some(
+                (entry) =>
+                    !entry.characterClass.trim() ||
+                    !Number.isInteger(entry.level) ||
+                    entry.level < 1 ||
+                    entry.level > 20,
+            )
+        ) {
+            throw new Error(
+                'Each class must have a name and a level between 1 and 20.',
+            );
         }
+
+        const normalizedClasses = this.classLevels.map((entry) =>
+            entry.characterClass.trim().toLocaleLowerCase(),
+        );
+
+        if (new Set(normalizedClasses).size !== normalizedClasses.length) {
+            throw new Error('A character cannot take the same class twice.');
+        }
+
+        if (!Number.isInteger(totalLevel) || totalLevel > 20) {
+            throw new Error('Total character level must be between 1 and 20.');
+        }
+
+        // Keep the legacy total-level field consistent with the class breakdown.
+        this.level = totalLevel;
+        this.characterClass = this.classLevels[0].characterClass;
+        this.subClass = this.classLevels[0].subClass;
 
         if (
             ABILITIES.some(
@@ -259,7 +324,7 @@ export class Character {
     }
 
     get proficiencyBonus(): number {
-        return calculateProficiencyBonus(this.level);
+        return calculateProficiencyBonus(this.totalLevel);
     }
 
     private spellcastingScore(): number {
@@ -280,6 +345,11 @@ export class Character {
     }
 
     get spellSaveDc(): number {
+        console.log("----------")
+        console.log(this.proficiencyBonus)
+        console.log(this.spellcastingScore())
+        console.log(this.abilityScore(this.spellcastingAbility))
+        console.log(this.spellcastingAbility)
         return (
             calculateSpellSaveDc(
                 this.spellcastingScore(),
@@ -703,6 +773,122 @@ export class Character {
         }
 
         this.savingThrowProficiencies[ability] = level;
+    }
+    get totalLevel(): number {
+        return this.classLevels.reduce(
+            (total, entry) => total + entry.level,
+            0,
+        );
+    }
+
+    getClassLevel(characterClass: string): number {
+        return (
+            this.classLevels.find(
+                (entry) =>
+                    entry.characterClass.toLocaleLowerCase() ===
+                    characterClass.toLocaleLowerCase(),
+            )?.level ?? 0
+        );
+    }
+
+    getClassEntry(characterClass: string): CharacterClassLevel | undefined {
+        return this.classLevels.find(
+            (entry) =>
+                entry.characterClass.toLocaleLowerCase() ===
+                characterClass.toLocaleLowerCase(),
+        );
+    }
+
+    setClassLevels(classLevels: CharacterClassLevel[]): void {
+        if (classLevels.length === 0) {
+            throw new Error('A character must have at least one class.');
+        }
+
+        this.classLevels = classLevels.map((entry) => ({
+            characterClass: entry.characterClass.trim(),
+            subClass: entry.subClass?.trim() ?? '',
+            level: entry.level,
+            spellcastingAbility: entry.spellcastingAbility,
+        }));
+
+        this.characterClass = this.classLevels[0].characterClass;
+        this.subClass = this.classLevels[0].subClass;
+        this.level = this.totalLevel;
+
+        this.validate();
+    }
+
+    getClassSpellcastingAbility(characterClass: string): Ability | null {
+        const entry = this.getClassEntry(characterClass);
+
+        if (!entry) {
+            throw new Error(
+                `Class '${characterClass}' is not part of this character.`,
+            );
+        }
+
+        // Explicit per-class setting takes priority, including explicit null.
+        if (entry.spellcastingAbility !== undefined) {
+            return entry.spellcastingAbility;
+        }
+
+        // Preserve the old character-level setting for the primary class.
+        if (
+            entry.characterClass.toLocaleLowerCase() ===
+            this.characterClass.toLocaleLowerCase()
+        ) {
+            return this.spellcastingAbility;
+        }
+
+        return DEFAULT_SPELLCASTING_ABILITIES[entry.characterClass] ?? null;
+    }
+
+    spellAttackBonusForClass(characterClass: string): number {
+        const ability = this.getClassSpellcastingAbility(characterClass);
+
+        if (ability === null) {
+            throw new Error(
+                `No spellcasting ability is configured for ${characterClass}.`,
+            );
+        }
+
+        return (
+            calculateSpellAttackBonus(
+                this.abilityScore(ability),
+                this.proficiencyBonus,
+            ) + this.totalStatBonus('spell_attack_bonus')
+        );
+    }
+
+    spellSaveDcForClass(characterClass: string): number {
+        const ability = this.getClassSpellcastingAbility(characterClass);
+
+        if (ability === null) {
+            throw new Error(
+                `No spellcasting ability is configured for ${characterClass}.`,
+            );
+        }
+
+        return (
+            calculateSpellSaveDc(
+                this.abilityScore(ability),
+                this.proficiencyBonus,
+            ) + this.totalStatBonus('spell_save_dc')
+        );
+    }
+
+    spellSaveDcForSpell(spell: Spell): number {
+        const sourceClass =
+            spell.sourceClass.trim() || this.characterClass;
+
+        return this.spellSaveDcForClass(sourceClass);
+    }
+
+    spellAttackBonusForSpell(spell: Spell): number {
+        const sourceClass =
+            spell.sourceClass.trim() || this.characterClass;
+
+        return this.spellAttackBonusForClass(sourceClass);
     }
 }
 
