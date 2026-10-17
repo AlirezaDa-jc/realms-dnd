@@ -15,10 +15,10 @@ import { ClassAction } from './class-action';
 import type { CharacterClassLevel } from './class-level';
 import { EquipmentItem } from './equipment';
 import { CharacterResource, type RecoveryType } from './resource';
+import { Spell } from './spell';
 import { SpellSlot } from './spell-slot';
 import { Spellbook } from './spellbook';
 import { StatBonus } from './stat-bonus';
-import { Spell } from './spell';
 
 export type { Ability, ProficiencyLevel };
 
@@ -118,7 +118,9 @@ export class Character {
     // Movement
     speed: number;
 
+
     // Character details
+    conditions: string[];
     traits: string[];
     ideals: string;
     bonds: string;
@@ -224,6 +226,7 @@ export class Character {
 
         // Character details
         this.traits = [...(data.traits ?? [])];
+        this.conditions = [...(data.conditions ?? [])];
         this.ideals = data.ideals ?? '';
         this.bonds = data.bonds ?? '';
         this.flaws = data.flaws ?? '';
@@ -889,6 +892,40 @@ export class Character {
             spell.sourceClass.trim() || this.characterClass;
 
         return this.spellAttackBonusForClass(sourceClass);
+    }
+
+    addCondition(condition: string): void {
+        const normalized = condition.trim();
+
+        if (!normalized) {
+            throw new Error('Condition cannot be empty.');
+        }
+
+        if (
+            this.conditions.some(
+                (item) =>
+                    item.toLocaleLowerCase() ===
+                    normalized.toLocaleLowerCase(),
+            )
+        ) {
+            throw new Error('Condition already exists.');
+        }
+
+        this.conditions.push(normalized);
+    }
+
+    removeCondition(condition: string): void {
+        const index = this.conditions.findIndex(
+            (item) =>
+                item.toLocaleLowerCase() ===
+                condition.trim().toLocaleLowerCase(),
+        );
+
+        if (index === -1) {
+            throw new Error(`Condition not found: ${condition}`);
+        }
+
+        this.conditions.splice(index, 1);
     }
 }
 

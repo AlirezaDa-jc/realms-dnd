@@ -23,6 +23,8 @@ type HeroSectionProps = {
     ) => void;
     onAddTrait: (trait: string) => void;
     onRemoveTrait: (trait: string) => void;
+    onAddCondition: (condition: string) => void;
+    onRemoveCondition: (condition: string) => void;
     onUploadPortrait: (uri: string) => void | Promise<void>;
     onTakeRest: (restType: RecoveryType) => void | Promise<void>;
     horizontal?: boolean;
@@ -33,6 +35,8 @@ export default function HeroSection({
     onChangeText,
     onAddTrait,
     onRemoveTrait,
+    onAddCondition,
+    onRemoveCondition,
     onUploadPortrait,
     onTakeRest,
     horizontal = true,
@@ -43,6 +47,10 @@ export default function HeroSection({
     const [expandedTraits, setExpandedTraits] = useState(true);
     const [traitModalVisible, setTraitModalVisible] = useState(false);
     const [newTrait, setNewTrait] = useState('');
+
+    const [expandedConditions, setExpandedConditions] = useState(true);
+    const [conditionModalVisible, setConditionModalVisible] = useState(false);
+    const [newCondition, setNewCondition] = useState('');
 
     function renderTextField(
         label: string,
@@ -128,10 +136,7 @@ export default function HeroSection({
         const trait = newTrait.trim();
 
         if (!trait) {
-            Alert.alert(
-                'Invalid Trait',
-                'Trait name cannot be empty.',
-            );
+            Alert.alert('Invalid Trait', 'Trait name cannot be empty.');
             return;
         }
 
@@ -141,16 +146,43 @@ export default function HeroSection({
         );
 
         if (duplicate) {
-            Alert.alert(
-                'Duplicate Trait',
-                'This trait already exists.',
-            );
+            Alert.alert('Duplicate Trait', 'This trait already exists.');
             return;
         }
 
         onAddTrait(trait);
         setTraitModalVisible(false);
         setNewTrait('');
+    }
+
+    function addCondition() {
+        const condition = newCondition.trim();
+
+        if (!condition) {
+            Alert.alert(
+                'Invalid Condition',
+                'Condition name cannot be empty.',
+            );
+            return;
+        }
+
+        const duplicate = (character.conditions ?? []).some(
+            (item) =>
+                item.toLocaleLowerCase() ===
+                condition.toLocaleLowerCase(),
+        );
+
+        if (duplicate) {
+            Alert.alert(
+                'Duplicate Condition',
+                'This condition already exists.',
+            );
+            return;
+        }
+
+        onAddCondition(condition);
+        setConditionModalVisible(false);
+        setNewCondition('');
     }
 
     const classLevels = character.classLevels ?? [];
@@ -242,15 +274,12 @@ export default function HeroSection({
                             </View>
 
                             <Pressable
-                                onPress={() =>
-                                    void handleUploadPortrait()
-                                }
+                                onPress={() => void handleUploadPortrait()}
                                 style={{
                                     padding: 8,
                                     alignItems: 'center',
                                     borderRadius: 9,
-                                    backgroundColor:
-                                        colors.backgroundSelected,
+                                    backgroundColor: colors.backgroundSelected,
                                 }}
                             >
                                 <Text
@@ -360,8 +389,7 @@ export default function HeroSection({
                                             fontWeight: '600',
                                         }}
                                     >
-                                        {character.background ||
-                                            'Not selected'}
+                                        {character.background || 'Not selected'}
                                     </Text>
                                 </View>
                             </View>
@@ -411,8 +439,7 @@ export default function HeroSection({
                                         padding: 14,
                                         gap: 12,
                                         borderRadius: 12,
-                                        backgroundColor:
-                                            colors.backgroundElement,
+                                        backgroundColor: colors.backgroundElement,
                                         borderWidth: 1,
                                         borderColor: colors.border,
                                     }}
@@ -565,6 +592,128 @@ export default function HeroSection({
                     )}
                 </View>
 
+                {/* Conditions */}
+                <View style={{ gap: 12 }}>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <Pressable
+                            onPress={() =>
+                                setExpandedConditions((value) => !value)
+                            }
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontWeight: '800',
+                                }}
+                            >
+                                CONDITIONS
+                            </Text>
+
+                            <Text
+                                style={{
+                                    color: colors.textSecondary,
+                                    fontSize: 12,
+                                }}
+                            >
+                                {expandedConditions ? '⌃' : '⌄'}
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={() => {
+                                setNewCondition('');
+                                setConditionModalVisible(true);
+                            }}
+                            style={{
+                                paddingHorizontal: 12,
+                                paddingVertical: 7,
+                                borderRadius: 8,
+                                backgroundColor: colors.backgroundSelected,
+                            }}
+                        >
+                            <Text
+                                style={{
+                                    color: colors.text,
+                                    fontSize: 12,
+                                    fontWeight: '700',
+                                }}
+                            >
+                                + Add
+                            </Text>
+                        </Pressable>
+                    </View>
+
+                    {expandedConditions && (
+                        <View style={{ gap: 7 }}>
+                            {(character.conditions ?? []).length === 0 ? (
+                                <Text
+                                    style={{
+                                        color: colors.textSecondary,
+                                        fontSize: 12,
+                                    }}
+                                >
+                                    No conditions added yet.
+                                </Text>
+                            ) : (
+                                character.conditions.map((condition, index) => (
+                                    <View
+                                        key={`${condition}-${index}`}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 10,
+                                            padding: 10,
+                                            borderRadius: 9,
+                                            backgroundColor:
+                                                'rgba(128,128,128,0.06)',
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                        }}
+                                    >
+                                        <Text
+                                            style={{
+                                                color: colors.text,
+                                                flex: 1,
+                                                fontSize: 13,
+                                            }}
+                                        >
+                                            {condition}
+                                        </Text>
+
+                                        <Pressable
+                                            onPress={() =>
+                                                onRemoveCondition(condition)
+                                            }
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Remove ${condition}`}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 17,
+                                                }}
+                                            >
+                                                ×
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                ))
+                            )}
+                        </View>
+                    )}
+                </View>
+
                 {/* Traits */}
                 <View style={{ gap: 12 }}>
                     <View
@@ -665,9 +814,7 @@ export default function HeroSection({
                                         </Text>
 
                                         <Pressable
-                                            onPress={() =>
-                                                onRemoveTrait(trait)
-                                            }
+                                            onPress={() => onRemoveTrait(trait)}
                                             accessibilityRole="button"
                                             accessibilityLabel={`Remove ${trait}`}
                                         >
@@ -747,16 +894,9 @@ export default function HeroSection({
                         </Text>
                     </View>
 
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            gap: 10,
-                        }}
-                    >
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
                         <Pressable
-                            onPress={() =>
-                                void onTakeRest('short_rest')
-                            }
+                            onPress={() => void onTakeRest('short_rest')}
                             style={{
                                 flex: 1,
                                 minWidth: 0,
@@ -775,7 +915,6 @@ export default function HeroSection({
                             }}
                         >
                             <Text style={{ fontSize: 20 }}>☕</Text>
-
                             <Text
                                 style={{
                                     color: colors.text,
@@ -785,7 +924,6 @@ export default function HeroSection({
                             >
                                 Short Rest
                             </Text>
-
                             <Text
                                 style={{
                                     color: colors.textSecondary,
@@ -824,14 +962,12 @@ export default function HeroSection({
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: 6,
-                                backgroundColor:
-                                    colors.backgroundSelected,
+                                backgroundColor: colors.backgroundSelected,
                                 borderWidth: 1,
                                 borderColor: colors.accent,
                             }}
                         >
                             <Text style={{ fontSize: 20 }}>🌙</Text>
-
                             <Text
                                 style={{
                                     color: colors.text,
@@ -841,7 +977,6 @@ export default function HeroSection({
                             >
                                 Long Rest
                             </Text>
-
                             <Text
                                 style={{
                                     color: colors.textSecondary,
@@ -855,7 +990,123 @@ export default function HeroSection({
                 </View>
             </View>
 
-            {/* Add trait modal */}
+            {/* Add Condition Modal */}
+            <Modal
+                visible={conditionModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setConditionModalVisible(false)}
+            >
+                <View
+                    style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        padding: 24,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                    }}
+                >
+                    <Pressable
+                        onPress={() => setConditionModalVisible(false)}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                        }}
+                    />
+
+                    <View
+                        style={{
+                            width: '100%',
+                            maxWidth: 420,
+                            padding: 20,
+                            gap: 16,
+                            borderRadius: 16,
+                            backgroundColor: colors.background,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontSize: 18,
+                                fontWeight: '800',
+                            }}
+                        >
+                            Add Condition
+                        </Text>
+
+                        <TextInput
+                            value={newCondition}
+                            onChangeText={setNewCondition}
+                            placeholder="Enter condition name"
+                            placeholderTextColor={colors.textSecondary}
+                            autoFocus
+                            returnKeyType="done"
+                            onSubmitEditing={addCondition}
+                            style={{
+                                padding: 12,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 10,
+                                backgroundColor: colors.backgroundElement,
+                                color: colors.text,
+                                fontSize: 14,
+                            }}
+                        />
+
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                justifyContent: 'flex-end',
+                                gap: 10,
+                            }}
+                        >
+                            <Pressable
+                                onPress={() => {
+                                    setConditionModalVisible(false);
+                                    setNewCondition('');
+                                }}
+                                style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 10,
+                                    borderRadius: 9,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <Text style={{ color: colors.text }}>
+                                    Cancel
+                                </Text>
+                            </Pressable>
+
+                            <Pressable
+                                onPress={addCondition}
+                                style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 10,
+                                    borderRadius: 9,
+                                    backgroundColor: colors.backgroundSelected,
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        color: colors.text,
+                                        fontWeight: '700',
+                                    }}
+                                >
+                                    Add Condition
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Add Trait Modal */}
             <Modal
                 visible={traitModalVisible}
                 transparent
@@ -954,8 +1205,7 @@ export default function HeroSection({
                                     paddingHorizontal: 14,
                                     paddingVertical: 10,
                                     borderRadius: 9,
-                                    backgroundColor:
-                                        colors.backgroundSelected,
+                                    backgroundColor: colors.backgroundSelected,
                                 }}
                             >
                                 <Text
