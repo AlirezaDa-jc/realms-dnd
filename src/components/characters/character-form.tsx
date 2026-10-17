@@ -777,7 +777,9 @@ export default function CharacterForm({
             {renderPickerModal(
                 speciesModalVisible,
                 'Choose Species',
-                SPECIES_GROUPS.flatMap((group) => group.options),
+                SPECIES_GROUPS
+                    .flatMap((group) => group.options)
+                    .sort((a, b) => a.localeCompare(b)),
                 values.species,
                 (value) => updateField('species', value),
                 () => setSpeciesModalVisible(false),

@@ -58,6 +58,7 @@ export const SPECIES_GROUPS = [
       'Orc',
       'Shifter',
       'Yuan-Ti',
+      'Lesser Devil'
     ],
   },
 ] as const;
