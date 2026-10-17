@@ -2,12 +2,12 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Text,
     View,
-    useColorScheme
+    useColorScheme,
 } from 'react-native';
 
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import { loadActiveCharacter } from '@/database/active-character';
 import { saveCharacter } from '@/database/character-repository';
@@ -46,10 +46,12 @@ export default function Dashboard({
 }: DashboardProps) {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo, showConfirm } = useDialog();
 
     const [character, setCharacter] = useState<Character | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
     type BonusTarget = {
         stat: string;
         title: string;
@@ -132,6 +134,7 @@ export default function Dashboard({
         },
         [openBonusManager],
     );
+
     useFocusEffect(
         useCallback(() => {
             let active = true;
@@ -186,15 +189,18 @@ export default function Dashboard({
 
             try {
                 await saveCharacter(updatedCharacter);
+                setError(null);
             } catch (err) {
-                setError(
+                setCharacter(character);
+                showInfo(
+                    'Could not save changes',
                     err instanceof Error
                         ? err.message
                         : 'Failed to save character.',
                 );
             }
         },
-        [character],
+        [character, showInfo],
     );
 
     const handleCombatUpdate = useCallback(
@@ -213,72 +219,62 @@ export default function Dashboard({
             const updatedCharacter = Object.assign(
                 Object.create(Object.getPrototypeOf(character)),
                 character,
-                { traits: [...character.traits] },
+                { traits: [...(character.traits ?? [])] },
             ) as Character;
 
             try {
                 updatedCharacter.addTrait(trait);
 
-                setCharacter(updatedCharacter);
                 await saveCharacter(updatedCharacter);
-            } catch (error) {
-                setCharacter(character);
-
-                Alert.alert(
+                setCharacter(updatedCharacter);
+                setError(null);
+            } catch (err) {
+                showInfo(
                     'Could not add trait',
-                    error instanceof Error
-                        ? error.message
+                    err instanceof Error
+                        ? err.message
                         : 'Failed to save the trait.',
                 );
             }
         },
-        [character],
+        [character, showInfo],
     );
 
     const handleRemoveTrait = useCallback(
         (trait: string) => {
             if (!character) return;
 
-            Alert.alert(
-                'Remove Trait',
-                `Are you sure you want to remove "${trait}"?`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => {
-                            void (async () => {
-                                const updatedCharacter = Object.assign(
-                                    Object.create(
-                                        Object.getPrototypeOf(character),
-                                    ),
-                                    character,
-                                    { traits: [...character.traits] },
-                                ) as Character;
+            showConfirm({
+                title: 'Remove Trait',
+                message: `Are you sure you want to remove "${trait}"?`,
+                confirmLabel: 'Remove',
+                cancelLabel: 'Cancel',
+                destructive: true,
+                onConfirm: async () => {
+                    const updatedCharacter = Object.assign(
+                        Object.create(Object.getPrototypeOf(character)),
+                        character,
+                        { traits: [...(character.traits ?? [])] },
+                    ) as Character;
 
-                                try {
-                                    updatedCharacter.removeTrait(trait);
+                    try {
+                        updatedCharacter.removeTrait(trait);
 
-                                    setCharacter(updatedCharacter);
-                                    await saveCharacter(updatedCharacter);
-                                } catch (error) {
-                                    setCharacter(character);
-
-                                    Alert.alert(
-                                        'Could not remove trait',
-                                        error instanceof Error
-                                            ? error.message
-                                            : 'Failed to save the change.',
-                                    );
-                                }
-                            })();
-                        },
-                    },
-                ],
-            );
+                        await saveCharacter(updatedCharacter);
+                        setCharacter(updatedCharacter);
+                        setError(null);
+                    } catch (err) {
+                        showInfo(
+                            'Could not remove trait',
+                            err instanceof Error
+                                ? err.message
+                                : 'Failed to save the change.',
+                        );
+                    }
+                },
+            });
         },
-        [character],
+        [character, showConfirm, showInfo],
     );
 
     const handleAddCondition = useCallback(
@@ -288,72 +284,62 @@ export default function Dashboard({
             const updatedCharacter = Object.assign(
                 Object.create(Object.getPrototypeOf(character)),
                 character,
-                { conditions: [...character.conditions] },
+                { conditions: [...(character.conditions ?? [])] },
             ) as Character;
 
             try {
                 updatedCharacter.addCondition(condition);
 
-                setCharacter(updatedCharacter);
                 await saveCharacter(updatedCharacter);
-            } catch (error) {
-                setCharacter(character);
-
-                Alert.alert(
+                setCharacter(updatedCharacter);
+                setError(null);
+            } catch (err) {
+                showInfo(
                     'Could not add condition',
-                    error instanceof Error
-                        ? error.message
+                    err instanceof Error
+                        ? err.message
                         : 'Failed to save the condition.',
                 );
             }
         },
-        [character],
+        [character, showInfo],
     );
 
     const handleRemoveCondition = useCallback(
         (condition: string) => {
             if (!character) return;
 
-            Alert.alert(
-                'Remove Condition',
-                `Are you sure you want to remove "${condition}"?`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => {
-                            void (async () => {
-                                const updatedCharacter = Object.assign(
-                                    Object.create(
-                                        Object.getPrototypeOf(character),
-                                    ),
-                                    character,
-                                    { conditions: [...character.conditions] },
-                                ) as Character;
+            showConfirm({
+                title: 'Remove Condition',
+                message: `Are you sure you want to remove "${condition}"?`,
+                confirmLabel: 'Remove',
+                cancelLabel: 'Cancel',
+                destructive: true,
+                onConfirm: async () => {
+                    const updatedCharacter = Object.assign(
+                        Object.create(Object.getPrototypeOf(character)),
+                        character,
+                        { conditions: [...(character.conditions ?? [])] },
+                    ) as Character;
 
-                                try {
-                                    updatedCharacter.removeCondition(condition);
+                    try {
+                        updatedCharacter.removeCondition(condition);
 
-                                    setCharacter(updatedCharacter);
-                                    await saveCharacter(updatedCharacter);
-                                } catch (error) {
-                                    setCharacter(character);
-
-                                    Alert.alert(
-                                        'Could not remove condition',
-                                        error instanceof Error
-                                            ? error.message
-                                            : 'Failed to save the change.',
-                                    );
-                                }
-                            })();
-                        },
-                    },
-                ],
-            );
+                        await saveCharacter(updatedCharacter);
+                        setCharacter(updatedCharacter);
+                        setError(null);
+                    } catch (err) {
+                        showInfo(
+                            'Could not remove condition',
+                            err instanceof Error
+                                ? err.message
+                                : 'Failed to save the change.',
+                        );
+                    }
+                },
+            });
         },
-        [character],
+        [character, showConfirm, showInfo],
     );
 
     const handleAddFeat = useCallback(
@@ -363,72 +349,62 @@ export default function Dashboard({
             const updatedCharacter = Object.assign(
                 Object.create(Object.getPrototypeOf(character)),
                 character,
-                { conditions: [...character.conditions] },
+                { feats: [...(character.feats ?? [])] },
             ) as Character;
 
             try {
                 updatedCharacter.addFeat(feat);
 
-                setCharacter(updatedCharacter);
                 await saveCharacter(updatedCharacter);
-            } catch (error) {
-                setCharacter(character);
-
-                Alert.alert(
+                setCharacter(updatedCharacter);
+                setError(null);
+            } catch (err) {
+                showInfo(
                     'Could not add feat',
-                    error instanceof Error
-                        ? error.message
+                    err instanceof Error
+                        ? err.message
                         : 'Failed to save the feat.',
                 );
             }
         },
-        [character],
+        [character, showInfo],
     );
 
     const handleRemoveFeat = useCallback(
         (feat: string) => {
             if (!character) return;
 
-            Alert.alert(
-                'Remove Feat',
-                `Are you sure you want to remove "${feat}"?`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => {
-                            void (async () => {
-                                const updatedCharacter = Object.assign(
-                                    Object.create(
-                                        Object.getPrototypeOf(character),
-                                    ),
-                                    character,
-                                    { conditions: [...character.conditions] },
-                                ) as Character;
+            showConfirm({
+                title: 'Remove Feat',
+                message: `Are you sure you want to remove "${feat}"?`,
+                confirmLabel: 'Remove',
+                cancelLabel: 'Cancel',
+                destructive: true,
+                onConfirm: async () => {
+                    const updatedCharacter = Object.assign(
+                        Object.create(Object.getPrototypeOf(character)),
+                        character,
+                        { feats: [...(character.feats ?? [])] },
+                    ) as Character;
 
-                                try {
-                                    updatedCharacter.removeFeat(feat);
+                    try {
+                        updatedCharacter.removeFeat(feat);
 
-                                    setCharacter(updatedCharacter);
-                                    await saveCharacter(updatedCharacter);
-                                } catch (error) {
-                                    setCharacter(character);
-
-                                    Alert.alert(
-                                        'Could not remove feat',
-                                        error instanceof Error
-                                            ? error.message
-                                            : 'Failed to save the change.',
-                                    );
-                                }
-                            })();
-                        },
-                    },
-                ],
-            );
+                        await saveCharacter(updatedCharacter);
+                        setCharacter(updatedCharacter);
+                        setError(null);
+                    } catch (err) {
+                        showInfo(
+                            'Could not remove feat',
+                            err instanceof Error
+                                ? err.message
+                                : 'Failed to save the change.',
+                        );
+                    }
+                },
+            });
         },
-        [character],
+        [character, showConfirm, showInfo],
     );
 
     const handleUploadPortrait = useCallback(
@@ -441,22 +417,20 @@ export default function Dashboard({
                 { portraitPath: uri },
             ) as Character;
 
-            setCharacter(updatedCharacter);
-
             try {
                 await saveCharacter(updatedCharacter);
-            } catch (error) {
-                setCharacter(character);
-
-                Alert.alert(
+                setCharacter(updatedCharacter);
+                setError(null);
+            } catch (err) {
+                showInfo(
                     'Save failed',
-                    error instanceof Error
-                        ? error.message
+                    err instanceof Error
+                        ? err.message
                         : 'Could not save the portrait.',
                 );
             }
         },
-        [character],
+        [character, showInfo],
     );
 
     if (loading) {
@@ -556,14 +530,13 @@ export default function Dashboard({
                     <HeroSection
                         character={character}
                         onTakeRest={async (restType) => {
-                            character.takeRest(restType);
+                            const updatedCharacter = Object.assign(
+                                Object.create(Object.getPrototypeOf(character)),
+                                character,
+                            ) as Character;
 
-                            await handleCombatUpdate(
-                                Object.assign(
-                                    Object.create(Object.getPrototypeOf(character)),
-                                    character,
-                                ) as Character,
-                            );
+                            updatedCharacter.takeRest(restType);
+                            await handleCombatUpdate(updatedCharacter);
                         }}
                         onChangeText={handleChangeText}
                         onAddFeat={handleAddFeat}
@@ -744,6 +717,7 @@ export default function Dashboard({
             >
                 <CharacterLogCard character={character} />
             </View>
+
             {bonusTarget && (
                 <BonusManager
                     visible

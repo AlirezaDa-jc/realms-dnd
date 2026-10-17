@@ -1,7 +1,6 @@
-
+import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     Text,
@@ -10,10 +9,10 @@ import {
     View,
 } from 'react-native';
 
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
-import { CombatStat } from '@/rules/dnd5e-2024';
-import { BlurView } from 'expo-blur';
+import type { CombatStat } from '@/rules/dnd5e-2024';
 
 type CombatStatsProps = {
     character: Character;
@@ -30,6 +29,7 @@ export default function CombatStats({
 }: CombatStatsProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [action, setAction] = useState<HpAction | null>(null);
     const [amount, setAmount] = useState('');
@@ -48,7 +48,10 @@ export default function CombatStats({
             !Number.isInteger(value) ||
             value < 0
         ) {
-            Alert.alert('Invalid value', 'Enter a non-negative whole number.');
+            showInfo(
+                'Invalid value',
+                'Enter a non-negative whole number.',
+            );
             return;
         }
 
@@ -72,7 +75,7 @@ export default function CombatStats({
             await onUpdate(updatedCharacter);
             setAction(null);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Update failed',
                 error instanceof Error
                     ? error.message
@@ -115,7 +118,10 @@ export default function CombatStats({
         }
 
         return bonuses
-            .map((bonus) => `${bonus.amount >= 0 ? '+' : ''}${bonus.amount} (${bonus.reason})`)
+            .map(
+                (bonus) =>
+                    `${bonus.amount >= 0 ? '+' : ''}${bonus.amount} (${bonus.reason})`,
+            )
             .join(' · ');
     };
 
@@ -133,7 +139,7 @@ export default function CombatStats({
                 : colors.background,
             borderWidth: 1,
             borderColor: colors.border,
-            minWidth: 60
+            minWidth: 60,
         };
     }
 
@@ -167,11 +173,12 @@ export default function CombatStats({
         value: string,
         category: CombatStat,
     ) {
-
         return (
             <View key={label} style={cardStyle}>
                 <Text style={labelStyle}>{label}</Text>
+
                 <Text style={valueStyle}>{value}</Text>
+
                 <Text
                     style={{
                         color: colors.textSecondary,
@@ -181,6 +188,7 @@ export default function CombatStats({
                 >
                     {getBonusSummary(category)}
                 </Text>
+
                 <Pressable
                     onPress={() => onAddBonus?.(category, label)}
                     disabled={!onAddBonus}
@@ -230,7 +238,6 @@ export default function CombatStats({
             }}
         >
             <View style={{ padding: 18, gap: 16 }}>
-
                 <Text
                     style={{
                         color: colors.accent,
@@ -242,48 +249,92 @@ export default function CombatStats({
                     COMBAT STATISTICS
                 </Text>
 
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        flexWrap: 'wrap',
+                        gap: 16,
+                    }}
+                >
                     <View style={cardStyle}>
                         <Text style={labelStyle}>HIT POINTS</Text>
+
                         <Text style={valueStyle}>
                             {character.currentHp} / {character.maxHp}
                         </Text>
-                        <View style={{ flexDirection: 'row', gap: 4, marginHorizontal: -14 }}>
-                            {renderButton('− Damage', () => openAction('damage'))}
-                            {renderButton('+ Heal', () => openAction('heal'), true)}
+
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                gap: 4,
+                                marginHorizontal: -14,
+                            }}
+                        >
+                            {renderButton(
+                                '− Damage',
+                                () => openAction('damage'),
+                            )}
+
+                            {renderButton(
+                                '+ Heal',
+                                () => openAction('heal'),
+                                true,
+                            )}
                         </View>
                     </View>
 
                     <View style={cardStyle}>
                         <Text style={labelStyle}>TEMPORARY HP</Text>
+
                         <Text style={valueStyle}>
                             {character.temporaryHp}
                         </Text>
+
                         <View>
                             {renderButton(
                                 'Set Temp HP',
                                 () => openAction('temporary'),
                                 true,
-
                             )}
                         </View>
                     </View>
                 </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                    {renderStat('ARMOR CLASS', String(character.armorClass), "armor_class")}
+
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                    }}
+                >
+                    {renderStat(
+                        'ARMOR CLASS',
+                        String(character.armorClass),
+                        'armor_class',
+                    )}
+
                     {renderStat(
                         'INITIATIVE',
                         `${character.initiative >= 0 ? '+' : ''}${character.initiative}`,
-                        "initiative"
+                        'initiative',
                     )}
-                    {renderStat('SPEED', `${character.totalSpeed} ft`, "speed")}
+
+                    {renderStat(
+                        'SPEED',
+                        `${character.totalSpeed} ft`,
+                        'speed',
+                    )}
                 </View>
 
                 <Modal
                     visible={action !== null}
                     transparent
                     animationType="fade"
-                    onRequestClose={() => setAction(null)}
+                    onRequestClose={() => {
+                        if (!saving) {
+                            setAction(null);
+                        }
+                    }}
                 >
                     <View
                         style={{
@@ -291,6 +342,7 @@ export default function CombatStats({
                             justifyContent: 'center',
                             padding: 24,
                             backgroundColor: 'rgba(0,0,0,0.55)',
+                            alignItems: 'center',
                         }}
                     >
                         <View
@@ -301,6 +353,8 @@ export default function CombatStats({
                                 backgroundColor: colors.background,
                                 borderWidth: 1,
                                 borderColor: colors.border,
+                                maxWidth: 600,
+                                minWidth: 300,
                             }}
                         >
                             <Text
@@ -321,6 +375,7 @@ export default function CombatStats({
                                 keyboardType="number-pad"
                                 placeholder="Amount"
                                 placeholderTextColor={colors.textSecondary}
+                                editable={!saving}
                                 autoFocus
                                 style={{
                                     padding: 12,
@@ -332,25 +387,52 @@ export default function CombatStats({
                                 }}
                             />
 
-                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <View
+                                style={{
+                                    flexDirection: 'row',
+                                    gap: 10,
+                                }}
+                            >
                                 <View style={{ flex: 1 }}>
-                                    {renderButton(
-                                        'Cancel',
-                                        () => setAction(null),
-                                    )}
+                                    <Pressable
+                                        disabled={saving}
+                                        onPress={() => setAction(null)}
+                                        style={[
+                                            buttonStyle(),
+                                            {
+                                                opacity: saving ? 0.5 : 1,
+                                            },
+                                        ]}
+                                    >
+                                        <Text
+                                            style={{
+                                                color: colors.text,
+                                                fontSize: 14,
+                                                fontWeight: '700',
+                                            }}
+                                        >
+                                            Cancel
+                                        </Text>
+                                    </Pressable>
                                 </View>
+
                                 <View style={{ flex: 1 }}>
                                     <Pressable
                                         disabled={saving}
                                         onPress={() => void applyAction()}
                                         style={[
                                             buttonStyle(true),
-                                            { opacity: saving ? 0.6 : 1 },
+                                            {
+                                                opacity: saving ? 0.6 : 1,
+                                            },
                                         ]}
                                     >
                                         <Text
                                             style={{
-                                                color: colors.text,
+                                                color:
+                                                    scheme === 'dark'
+                                                        ? '#11100F'
+                                                        : '#FFFFFF',
                                                 fontWeight: '800',
                                             }}
                                         >

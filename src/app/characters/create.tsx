@@ -1,6 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { Alert } from 'react-native';
-
+import { useDialog } from '@/components/dialog/realms-dialog';
 import CharacterForm, {
     type CharacterFormValues,
 } from '@/components/characters/character-form';
@@ -10,7 +9,7 @@ import { Character } from '@/models/character';
 
 export default function CreateCharacterScreen() {
     const router = useRouter();
-
+    const { showDialog, showInfo, showConfirm } = useDialog();
     async function handleSubmit(values: CharacterFormValues) {
         try {
             const character = new Character({
@@ -37,18 +36,19 @@ export default function CreateCharacterScreen() {
 
             await saveCharacter(character);
 
-            Alert.alert(
-                'Character Created',
-                `${character.name} has been saved successfully.`,
-                [
+            showDialog({
+                title: 'Character Created',
+                message: `${character.name} has been saved successfully.`,
+                actions: [
                     {
-                        text: 'OK',
+                        label: 'OK',
+                        variant: 'primary',
                         onPress: () => router.back(),
                     },
                 ],
-            );
+            });
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save Failed',
                 error instanceof Error
                     ? error.message

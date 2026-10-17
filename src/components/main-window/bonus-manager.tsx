@@ -1,6 +1,6 @@
+import { BlurView } from 'expo-blur';
 import { useEffect, useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     ScrollView,
@@ -9,8 +9,8 @@ import {
     useColorScheme,
     View,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { StatBonus } from '@/models/stat-bonus';
@@ -45,6 +45,7 @@ export default function BonusManager({
     const scheme = useColorScheme();
     const isDark = scheme === 'dark';
     const colors = Colors[isDark ? 'dark' : 'light'];
+    const { showInfo, showConfirm } = useDialog();
 
     const [adding, setAdding] = useState(false);
     const [category, setCategory] = useState<BonusCategory | null>(
@@ -96,6 +97,8 @@ export default function BonusManager({
     }
 
     async function saveBonus() {
+        if (saving) return;
+
         const numericAmount = Number(amount);
         const trimmedReason = reason.trim();
 
@@ -105,7 +108,7 @@ export default function BonusManager({
             numericAmount < -99 ||
             numericAmount > 99
         ) {
-            Alert.alert(
+            showInfo(
                 'Invalid amount',
                 'Enter a whole number between -99 and 99.',
             );
@@ -113,17 +116,15 @@ export default function BonusManager({
         }
 
         if (!trimmedReason) {
-            Alert.alert(
+            showInfo(
                 'Missing reason',
                 'Please enter a reason for this bonus.',
             );
             return;
         }
 
-        if (
-            !categories.some((option) => option.category === category)
-        ) {
-            Alert.alert('Invalid category', 'Select a bonus type.');
+        if (!categories.some((option) => option.category === category)) {
+            showInfo('Invalid category', 'Select a bonus type.');
             return;
         }
 
@@ -151,7 +152,7 @@ export default function BonusManager({
             setAmount('1');
             setReason('');
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save failed',
                 error instanceof Error
                     ? error.message
@@ -163,23 +164,23 @@ export default function BonusManager({
     }
 
     function deleteBonus(index: number) {
-        Alert.alert(
-            'Delete bonus',
-            'Are you sure you want to delete this bonus?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => {
-                        void performDelete(index);
-                    },
-                },
-            ],
-        );
+        if (saving) return;
+
+        showConfirm({
+            title: 'Delete bonus',
+            message: 'Are you sure you want to delete this bonus?',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Cancel',
+            destructive: true,
+            onConfirm: async () => {
+                await performDelete(index);
+            },
+        });
     }
 
     async function performDelete(index: number) {
+        if (saving) return;
+
         const updatedCharacter = Object.assign(
             Object.create(Object.getPrototypeOf(character)),
             character,
@@ -195,7 +196,7 @@ export default function BonusManager({
         try {
             await onUpdate(updatedCharacter);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Delete failed',
                 error instanceof Error
                     ? error.message
@@ -223,6 +224,7 @@ export default function BonusManager({
                     justifyContent: 'center',
                     padding: 20,
                     backgroundColor: 'rgba(0,0,0,0.65)',
+                    alignItems: 'center',
                 }}
             >
                 <BlurView
@@ -234,6 +236,8 @@ export default function BonusManager({
                         overflow: 'hidden',
                         borderWidth: 1,
                         borderColor: colors.border,
+                        maxWidth: 600,
+                        minWidth: 300,
                     }}
                 >
                     <View
@@ -250,7 +254,9 @@ export default function BonusManager({
                                 fontWeight: '800',
                             }}
                         >
-                            {adding ? `Add Bonus — ${title}` : `Bonuses — ${title}`}
+                            {adding
+                                ? `Add Bonus — ${title}`
+                                : `Bonuses — ${title}`}
                         </Text>
 
                         {adding ? (
@@ -309,9 +315,7 @@ export default function BonusManager({
                                     }
                                     keyboardType="numbers-and-punctuation"
                                     placeholder="-99 to 99"
-                                    placeholderTextColor={
-                                        colors.textSecondary
-                                    }
+                                    placeholderTextColor={colors.textSecondary}
                                     editable={!saving}
                                     style={{
                                         color: colors.text,
@@ -330,9 +334,7 @@ export default function BonusManager({
                                     value={reason}
                                     onChangeText={setReason}
                                     placeholder="e.g. Magic item, class feature, blessing"
-                                    placeholderTextColor={
-                                        colors.textSecondary
-                                    }
+                                    placeholderTextColor={colors.textSecondary}
                                     editable={!saving}
                                     style={{
                                         color: colors.text,
@@ -376,7 +378,12 @@ export default function BonusManager({
                                                     colors.backgroundElement,
                                             }}
                                         >
-                                            <View style={{ flex: 1, gap: 4 }}>
+                                            <View
+                                                style={{
+                                                    flex: 1,
+                                                    gap: 4,
+                                                }}
+                                            >
                                                 <Text
                                                     style={{
                                                         ...textStyle,
@@ -386,7 +393,10 @@ export default function BonusManager({
                                                     {bonus.amount >= 0
                                                         ? `+${bonus.amount}`
                                                         : bonus.amount}{' '}
-                                                    | {categoryLabel(bonus.category)}
+                                                    |{' '}
+                                                    {categoryLabel(
+                                                        bonus.category,
+                                                    )}
                                                 </Text>
 
                                                 <Text
@@ -467,10 +477,7 @@ export default function BonusManager({
                                         {
                                             paddingHorizontal: 12,
                                             paddingVertical: 8,
-                                            borderRadius: 8,
                                             backgroundColor: colors.accent,
-                                            alignItems: 'center' as const,
-                                            justifyContent: 'center' as const,
                                             opacity: saving ? 0.5 : 1,
                                         },
                                     ]}
@@ -479,8 +486,7 @@ export default function BonusManager({
                                         style={{
                                             ...textStyle,
                                             fontWeight: '800',
-                                            color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
-
+                                            color: isDark ? '#11100F' : '#FFFFFF',
                                         }}
                                     >
                                         {saving ? 'Saving…' : 'Save'}
@@ -501,10 +507,7 @@ export default function BonusManager({
                                             opacity: saving ? 0.5 : 1,
                                             paddingHorizontal: 12,
                                             paddingVertical: 8,
-                                            borderRadius: 8,
                                             backgroundColor: colors.accent,
-                                            alignItems: 'center' as const,
-                                            justifyContent: 'center' as const,
                                         },
                                     ]}
                                 >
@@ -512,7 +515,7 @@ export default function BonusManager({
                                         style={{
                                             ...textStyle,
                                             fontWeight: '800',
-                                            color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
+                                            color: isDark ? '#11100F' : '#FFFFFF',
                                         }}
                                     >
                                         Bonus

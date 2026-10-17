@@ -7,7 +7,7 @@ import {
     View,
     useColorScheme,
 } from 'react-native';
-
+import { useDialog } from '@/components/dialog/realms-dialog';
 import CharacterForm, {
     type CharacterFormValues,
 } from '@/components/characters/character-form';
@@ -18,7 +18,7 @@ import type { Character } from '@/models/character';
 export default function EditCharacterScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
-
+    const { showDialog, showInfo, showConfirm } = useDialog();
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
@@ -67,7 +67,7 @@ export default function EditCharacterScreen() {
                 }
             } catch (error) {
                 if (!cancelled) {
-                    Alert.alert(
+                    showInfo(
                         'Could not load character',
                         error instanceof Error
                             ? error.message
@@ -120,13 +120,13 @@ export default function EditCharacterScreen() {
 
             await saveCharacter(updated, character.id);
 
-            Alert.alert(
+            showInfo(
                 'Character Updated',
                 `${updated.name} has been saved successfully.`,
                 [{ text: 'OK', onPress: () => router.back() }],
             );
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save Failed',
                 error instanceof Error
                     ? error.message

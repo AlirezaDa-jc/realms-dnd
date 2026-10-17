@@ -1,14 +1,14 @@
 import { Colors } from '@/constants/theme';
+import { useDialog } from '@/components/dialog/realms-dialog';
 import type { Character } from '@/models/character';
 import { BlurView } from 'expo-blur';
 import { useEffect, useState } from 'react';
 import {
-    Alert,
     Pressable,
     Text,
     TextInput,
     useColorScheme,
-    View
+    View,
 } from 'react-native';
 
 type NotesCardProps = {
@@ -22,6 +22,7 @@ export default function NotesCard({
 }: NotesCardProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [notes, setNotes] = useState(character.notes);
     const [saving, setSaving] = useState(false);
@@ -45,9 +46,8 @@ export default function NotesCard({
             ) as Character;
 
             await onUpdate(updatedCharacter);
-
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save failed',
                 error instanceof Error
                     ? error.message
@@ -61,7 +61,7 @@ export default function NotesCard({
     return (
         <BlurView
             intensity={scheme === 'dark' ? 35 : 65}
-            tint={scheme}
+            tint={scheme === 'dark' ? 'dark' : 'light'}
             style={{
                 padding: 16,
                 borderRadius: 18,
@@ -70,7 +70,6 @@ export default function NotesCard({
                 borderColor: colors.border,
                 gap: 12,
                 marginTop: 16,
-
             }}
         >
             <View
@@ -134,7 +133,7 @@ export default function NotesCard({
                 }}
             >
                 <Pressable
-                    onPress={saveNotes}
+                    onPress={() => void saveNotes()}
                     disabled={saving || !hasChanges}
                     style={{
                         backgroundColor: colors.accent,

@@ -1,9 +1,9 @@
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     Text,
@@ -59,6 +59,7 @@ export default function Proficiencies({
     const scheme = useColorScheme();
     const isDark = scheme === 'dark';
     const colors = Colors[isDark ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedGroup, setSelectedGroup] =
@@ -119,11 +120,12 @@ export default function Proficiencies({
         if (!value) return;
 
         const alreadyExists = draftItems.some(
-            (item) => item.toLocaleLowerCase() === value.toLocaleLowerCase(),
+            (item) =>
+                item.toLocaleLowerCase() === value.toLocaleLowerCase(),
         );
 
         if (alreadyExists) {
-            Alert.alert(
+            showInfo(
                 'Already exists',
                 `${value} is already in this list.`,
             );
@@ -158,7 +160,7 @@ export default function Proficiencies({
             setDraftItems([]);
             setNewItem('');
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save failed',
                 error instanceof Error
                     ? error.message
@@ -253,6 +255,7 @@ export default function Proficiencies({
                         justifyContent: 'center',
                         padding: 20,
                         backgroundColor: 'rgba(0,0,0,0.65)',
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -264,6 +267,8 @@ export default function Proficiencies({
                             backgroundColor: colors.background,
                             borderWidth: 1,
                             borderColor: colors.border,
+                            maxWidth: 600,
+                            minWidth: 300,
                         }}
                     >
                         <Text style={styles.title}>
@@ -420,7 +425,7 @@ export default function Proficiencies({
                             </Pressable>
 
                             <Pressable
-                                onPress={saveChanges}
+                                onPress={() => void saveChanges()}
                                 disabled={saving}
                                 style={[
                                     styles.button,

@@ -1,7 +1,5 @@
-
 import { useState } from 'react';
 import {
-    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -11,8 +9,10 @@ import {
     Text,
     TextInput,
     View,
+    useColorScheme,
 } from 'react-native';
 
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors, Spacing } from '@/constants/theme';
 import {
     ABILITIES,
@@ -20,7 +20,6 @@ import {
     MAX_CHARACTER_LEVEL,
     SPECIES_GROUPS,
 } from '@/data/character-options';
-import { useColorScheme } from 'react-native';
 
 type AbilityKey = (typeof ABILITIES)[number]['key'];
 type AbilityScores = Record<AbilityKey, string>;
@@ -77,6 +76,7 @@ export default function CharacterForm({
 }: CharacterFormProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [values, setValues] = useState<CharacterFormValues>(() => ({
         ...EMPTY_VALUES,
@@ -138,7 +138,6 @@ export default function CharacterForm({
             ],
         }));
 
-        // The new class has no subclass until the user adds one.
         setSubclassVisible((previous) => ({
             ...previous,
             [values.classLevels.length]: false,
@@ -184,7 +183,7 @@ export default function CharacterForm({
             ),
         }));
 
-        // Shift visibility entries to match the remaining class cards.
+        // Keep subclass visibility aligned with the remaining class cards.
         setSubclassVisible((previous) => {
             const next: Record<number, boolean> = {};
 
@@ -204,12 +203,12 @@ export default function CharacterForm({
 
     function validateForm(): boolean {
         if (!values.name.trim()) {
-            Alert.alert('Missing Name', 'Enter a character name.');
+            showInfo('Missing Name', 'Enter a character name.');
             return false;
         }
 
         if (values.classLevels.length === 0) {
-            Alert.alert(
+            showInfo(
                 'Missing Class',
                 'Add at least one class and enter its level.',
             );
@@ -233,7 +232,7 @@ export default function CharacterForm({
 
         for (const [label, value, minimum, maximum] of numericFields) {
             if (!value.trim()) {
-                Alert.alert('Missing Value', `Enter a value for ${label}.`);
+                showInfo('Missing Value', `Enter a value for ${label}.`);
                 return false;
             }
 
@@ -244,7 +243,7 @@ export default function CharacterForm({
                 number < minimum ||
                 number > maximum
             ) {
-                Alert.alert(
+                showInfo(
                     'Invalid Value',
                     `${label} must be an integer between ${minimum} and ${maximum}.`,
                 );
@@ -254,7 +253,7 @@ export default function CharacterForm({
 
         for (const entry of values.classLevels) {
             if (!entry.characterClass.trim()) {
-                Alert.alert(
+                showInfo(
                     'Missing Class',
                     'Select a class for every class entry.',
                 );
@@ -268,7 +267,7 @@ export default function CharacterForm({
                 classLevel < 1 ||
                 classLevel > MAX_CHARACTER_LEVEL
             ) {
-                Alert.alert(
+                showInfo(
                     'Invalid Class Level',
                     `Each class level must be between 1 and ${MAX_CHARACTER_LEVEL}.`,
                 );
@@ -282,7 +281,7 @@ export default function CharacterForm({
         );
 
         if (totalLevel > MAX_CHARACTER_LEVEL) {
-            Alert.alert(
+            showInfo(
                 'Invalid Total Level',
                 `Combined class levels cannot exceed ${MAX_CHARACTER_LEVEL}.`,
             );
@@ -294,7 +293,7 @@ export default function CharacterForm({
         );
 
         if (new Set(normalizedClasses).size !== normalizedClasses.length) {
-            Alert.alert(
+            showInfo(
                 'Duplicate Class',
                 'Choose each class only once and put its total levels in that entry.',
             );
@@ -302,7 +301,7 @@ export default function CharacterForm({
         }
 
         if (Number(values.currentHp) > Number(values.maxHp)) {
-            Alert.alert(
+            showInfo(
                 'Invalid HP',
                 'Current HP cannot exceed Maximum HP.',
             );
@@ -312,6 +311,7 @@ export default function CharacterForm({
         onSubmit({
             ...values,
             name: values.name.trim(),
+            species: values.species.trim(),
             background: values.background.trim(),
             classLevels: values.classLevels.map((entry) => ({
                 characterClass: entry.characterClass.trim(),
@@ -345,18 +345,21 @@ export default function CharacterForm({
                 visible={visible}
                 animationType="slide"
                 presentationStyle="pageSheet"
-                onRequestClose={onClose}>
+                onRequestClose={onClose}
+            >
                 <View
                     style={[
                         styles.modalContainer,
                         { backgroundColor: colors.background },
-                    ]}>
+                    ]}
+                >
                     <View style={styles.modalHeader}>
                         <Text
                             style={[
                                 styles.modalTitle,
                                 { color: colors.text },
-                            ]}>
+                            ]}
+                        >
                             {title}
                         </Text>
 
@@ -365,7 +368,8 @@ export default function CharacterForm({
                                 style={[
                                     styles.closeText,
                                     { color: colors.accent },
-                                ]}>
+                                ]}
+                            >
                                 Close
                             </Text>
                         </Pressable>
@@ -390,12 +394,14 @@ export default function CharacterForm({
                                                 : colors.backgroundElement,
                                             borderColor: colors.border,
                                         },
-                                    ]}>
+                                    ]}
+                                >
                                     <Text
                                         style={[
                                             styles.optionText,
                                             { color: colors.text },
-                                        ]}>
+                                        ]}
+                                    >
                                         {option}
                                     </Text>
 
@@ -419,10 +425,12 @@ export default function CharacterForm({
                 styles.screen,
                 { backgroundColor: colors.background },
             ]}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
             <ScrollView
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.content}>
+                contentContainerStyle={styles.content}
+            >
                 <Text style={[styles.eyebrow, { color: colors.accent }]}>
                     {mode === 'create'
                         ? 'BEGIN YOUR ADVENTURE'
@@ -439,7 +447,8 @@ export default function CharacterForm({
                     style={[
                         styles.subtitle,
                         { color: colors.textSecondary },
-                    ]}>
+                    ]}
+                >
                     {mode === 'create'
                         ? 'Define your hero before entering the realm.'
                         : 'Update your character details.'}
@@ -468,13 +477,15 @@ export default function CharacterForm({
                                 backgroundColor: colors.backgroundElement,
                                 borderColor: colors.border,
                             },
-                        ]}>
+                        ]}
+                    >
                         <Text
                             style={{
                                 color: values.species
                                     ? colors.text
                                     : colors.textSecondary,
-                            }}>
+                            }}
+                        >
                             {values.species || 'Select species'}
                         </Text>
 
@@ -490,7 +501,8 @@ export default function CharacterForm({
                     style={[
                         styles.helper,
                         { color: colors.textSecondary },
-                    ]}>
+                    ]}
+                >
                     Add each class and its level. Add a subclass when your
                     character qualifies for one.
                 </Text>
@@ -504,19 +516,22 @@ export default function CharacterForm({
                                 borderColor: colors.border,
                                 backgroundColor: colors.backgroundElement,
                             },
-                        ]}>
+                        ]}
+                    >
                         <View style={styles.classCardHeader}>
                             <Text
                                 style={[
                                     styles.classCardTitle,
                                     { color: colors.text },
-                                ]}>
+                                ]}
+                            >
                                 Class {index + 1}
                             </Text>
 
                             <Pressable
                                 onPress={() => removeClass(index)}
-                                hitSlop={8}>
+                                hitSlop={8}
+                            >
                                 <Text style={styles.removeText}>Remove</Text>
                             </Pressable>
                         </View>
@@ -533,13 +548,15 @@ export default function CharacterForm({
                                         backgroundColor: colors.background,
                                         borderColor: colors.border,
                                     },
-                                ]}>
+                                ]}
+                            >
                                 <Text
                                     style={{
                                         color: entry.characterClass
                                             ? colors.text
                                             : colors.textSecondary,
-                                    }}>
+                                    }}
+                                >
                                     {entry.characterClass || 'Select class'}
                                 </Text>
 
@@ -590,12 +607,14 @@ export default function CharacterForm({
 
                                 <Pressable
                                     onPress={() => removeSubclass(index)}
-                                    style={styles.subclassAction}>
+                                    style={styles.subclassAction}
+                                >
                                     <Text
                                         style={[
                                             styles.subclassActionText,
                                             { color: colors.textSecondary },
-                                        ]}>
+                                        ]}
+                                    >
                                         Remove Subclass
                                     </Text>
                                 </Pressable>
@@ -609,12 +628,14 @@ export default function CharacterForm({
                                         borderColor: colors.border,
                                         backgroundColor: colors.background,
                                     },
-                                ]}>
+                                ]}
+                            >
                                 <Text
                                     style={{
                                         color: colors.accent,
                                         fontWeight: '700',
-                                    }}>
+                                    }}
+                                >
                                     + Add Subclass
                                 </Text>
                             </Pressable>
@@ -630,13 +651,15 @@ export default function CharacterForm({
                             borderColor: colors.border,
                             backgroundColor: colors.backgroundElement,
                         },
-                    ]}>
+                    ]}
+                >
                     <Text
                         style={{
                             color: colors.accent,
                             fontWeight: '700',
                             fontSize: 15,
-                        }}>
+                        }}
+                    >
                         + Add Class
                     </Text>
                 </Pressable>
@@ -660,7 +683,8 @@ export default function CharacterForm({
                     style={[
                         styles.helper,
                         { color: colors.textSecondary },
-                    ]}>
+                    ]}
+                >
                     Enter a score from 1 to 30 for each ability.
                 </Text>
 
@@ -671,7 +695,8 @@ export default function CharacterForm({
                                 style={[
                                     styles.abilityLabel,
                                     { color: colors.text },
-                                ]}>
+                                ]}
+                            >
                                 {label}
                             </Text>
 
@@ -755,7 +780,8 @@ export default function CharacterForm({
                     style={[
                         styles.primaryButton,
                         { backgroundColor: colors.accent },
-                    ]}>
+                    ]}
+                >
                     <Text style={styles.primaryButtonText}>
                         {mode === 'create'
                             ? 'Create Character'
@@ -768,7 +794,8 @@ export default function CharacterForm({
                         style={[
                             styles.cancelText,
                             { color: colors.textSecondary },
-                        ]}>
+                        ]}
+                    >
                         Cancel
                     </Text>
                 </Pressable>
@@ -790,7 +817,8 @@ export default function CharacterForm({
                 'Choose Class',
                 CHARACTER_CLASSES,
                 selectedClassIndex !== null
-                    ? values.classLevels[selectedClassIndex]?.characterClass ?? ''
+                    ? values.classLevels[selectedClassIndex]
+                        ?.characterClass ?? ''
                     : '',
                 (value) => {
                     if (selectedClassIndex !== null) {
@@ -825,7 +853,8 @@ function SectionTitle({
                     color: colors.text,
                     borderBottomColor: colors.border,
                 },
-            ]}>
+            ]}
+        >
             {title}
         </Text>
     );
@@ -846,7 +875,8 @@ function Field({
                 style={[
                     styles.label,
                     { color: colors.textSecondary },
-                ]}>
+                ]}
+            >
                 {label}
             </Text>
             {children}

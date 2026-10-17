@@ -1,9 +1,9 @@
 import { Colors } from '@/constants/theme';
 import type { Ability, Character } from '@/models/character';
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     Text,
@@ -40,6 +40,7 @@ export default function SavingThrows({
     const scheme = useColorScheme();
     const isDark = scheme === 'dark';
     const colors = Colors[isDark ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedAbility, setSelectedAbility] =
@@ -112,7 +113,7 @@ export default function SavingThrows({
             setModalVisible(false);
             setSelectedAbility(null);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save failed',
                 error instanceof Error
                     ? error.message
@@ -154,7 +155,8 @@ export default function SavingThrows({
                                 borderBottomColor: colors.border,
                                 flexDirection: 'column',
                                 gap: 16,
-                            }}>
+                            }}
+                        >
                             <View
                                 style={{
                                     flexDirection: 'row',
@@ -162,7 +164,6 @@ export default function SavingThrows({
                                     gap: 8,
                                 }}
                             >
-                                {/* Column 1: Name */}
                                 <Text
                                     style={{
                                         ...styles.text,
@@ -172,7 +173,6 @@ export default function SavingThrows({
                                     {name}
                                 </Text>
 
-                                {/* Column 2: Proficiency */}
                                 <Text
                                     style={{
                                         ...styles.secondary,
@@ -183,7 +183,6 @@ export default function SavingThrows({
                                     {getProficiencyLabel(proficiency)}
                                 </Text>
 
-                                {/* Column 3: Bonus */}
                                 <Text
                                     style={{
                                         ...styles.text,
@@ -195,6 +194,7 @@ export default function SavingThrows({
                                     {bonus >= 0 ? `+${bonus}` : bonus}
                                 </Text>
                             </View>
+
                             <View
                                 style={{
                                     flexDirection: 'row',
@@ -203,13 +203,17 @@ export default function SavingThrows({
                                     gap: 8,
                                 }}
                             >
-
                                 <Pressable
-                                    onPress={() => openProficiencyModal(ability)}
+                                    onPress={() =>
+                                        openProficiencyModal(ability)
+                                    }
                                     style={styles.button}
                                 >
-                                    <Text style={styles.buttonText}>Edit Proficiency</Text>
+                                    <Text style={styles.buttonText}>
+                                        Edit Proficiency
+                                    </Text>
                                 </Pressable>
+
                                 <Pressable
                                     onPress={() =>
                                         onAddBonus?.(ability, 'saving_throw')
@@ -220,7 +224,9 @@ export default function SavingThrows({
                                     ]}
                                     disabled={!onAddBonus}
                                 >
-                                    <Text style={styles.buttonText}>Bonus</Text>
+                                    <Text style={styles.buttonText}>
+                                        Bonus
+                                    </Text>
                                 </Pressable>
                             </View>
                         </View>
@@ -245,6 +251,7 @@ export default function SavingThrows({
                         justifyContent: 'center',
                         padding: 20,
                         backgroundColor: 'rgba(0,0,0,0.65)',
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -255,6 +262,8 @@ export default function SavingThrows({
                             backgroundColor: colors.background,
                             borderWidth: 1,
                             borderColor: colors.border,
+                            maxWidth: 600,
+                            minWidth: 300,
                         }}
                     >
                         <Text style={styles.title}>
@@ -365,7 +374,7 @@ export default function SavingThrows({
                             </Pressable>
 
                             <Pressable
-                                onPress={saveProficiency}
+                                onPress={() => void saveProficiency()}
                                 disabled={saving}
                                 style={[
                                     styles.button,
@@ -380,6 +389,6 @@ export default function SavingThrows({
                     </View>
                 </View>
             </Modal>
-        </BlurView >
+        </BlurView>
     );
 }

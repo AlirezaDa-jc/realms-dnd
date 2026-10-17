@@ -5,6 +5,7 @@ import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
+import { DialogProvider } from '@/components/dialog/realms-dialog';
 import { getDatabase } from '@/database/database';
 
 SplashScreen.preventAutoHideAsync().catch(() => { });
@@ -67,10 +68,10 @@ export default function TabLayout() {
           <Text style={{ textAlign: 'center' }}>{databaseError}</Text>
         </View>
       ) : databaseReady ? (
-        <>
+        <DialogProvider>
           <AnimatedSplashOverlay />
           <AppTabs />
-        </>
+        </DialogProvider>
       ) : (
         <View
           style={{

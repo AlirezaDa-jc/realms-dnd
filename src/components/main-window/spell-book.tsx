@@ -1,12 +1,11 @@
-
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { Spell } from '@/models/spell';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useMemo, useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     ScrollView,
@@ -74,6 +73,7 @@ export default function SpellbookCard({
 }: SpellbookProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo, showConfirm } = useDialog();
 
     const [addVisible, setAddVisible] = useState(false);
     const [editingSpell, setEditingSpell] = useState<Spell | null>(null);
@@ -87,9 +87,11 @@ export default function SpellbookCard({
     const [saving, setSaving] = useState(false);
 
     const spells = character.spellbook.spells;
+
     const characterClasses = character.classLevels.map(
         (entry) => entry.characterClass,
     );
+
     const preparedSpells = useMemo(
         () => spells.filter((spell) => spell.prepared),
         [spells],
@@ -127,6 +129,14 @@ export default function SpellbookCard({
         setAddVisible(true);
     };
 
+    const closeSpellForm = () => {
+        if (saving) return;
+
+        setAddVisible(false);
+        setEditingSpell(null);
+        setForm(EMPTY_FORM);
+    };
+
     const updateForm = <K extends keyof SpellForm>(
         key: K,
         value: SpellForm[K],
@@ -136,11 +146,12 @@ export default function SpellbookCard({
 
     const persist = async (updated: Character) => {
         setSaving(true);
+
         try {
             await onUpdate(updated);
             return true;
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save Failed',
                 error instanceof Error
                     ? error.message
@@ -153,11 +164,13 @@ export default function SpellbookCard({
     };
 
     const submitSpell = async () => {
+        if (saving) return;
+
         const name = form.name.trim();
         const level = Number(form.level);
 
         if (!name) {
-            Alert.alert('Missing Spell Name', 'Enter a spell name first.');
+            showInfo('Missing Spell Name', 'Enter a spell name first.');
             return;
         }
 
@@ -165,7 +178,7 @@ export default function SpellbookCard({
             !form.sourceClass ||
             !characterClasses.includes(form.sourceClass)
         ) {
-            Alert.alert(
+            showInfo(
                 'Missing Spellcasting Class',
                 'Select which class this spell belongs to.',
             );
@@ -173,7 +186,10 @@ export default function SpellbookCard({
         }
 
         if (!Number.isInteger(level) || level < 0 || level > 9) {
-            Alert.alert('Invalid Level', 'Spell level must be between 0 and 9.');
+            showInfo(
+                'Invalid Level',
+                'Spell level must be between 0 and 9.',
+            );
             return;
         }
 
@@ -184,7 +200,7 @@ export default function SpellbookCard({
         );
 
         if (duplicate) {
-            Alert.alert(
+            showInfo(
                 'Spell Already Exists',
                 `${name} is already in this spellbook.`,
             );
@@ -247,7 +263,7 @@ export default function SpellbookCard({
                 setAddVisible(false);
             }
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 editingSpell ? 'Cannot Edit Spell' : 'Cannot Add Spell',
                 error instanceof Error
                     ? error.message
@@ -269,6 +285,8 @@ export default function SpellbookCard({
     };
 
     const savePreparedSpells = async () => {
+        if (saving) return;
+
         const updatedSpells = spells.map((spell, index) =>
             Object.assign(cloneSpell(spell), {
                 prepared:
@@ -294,10 +312,9 @@ export default function SpellbookCard({
 
     const openCast = (spell: Spell) => {
         if (spell.level === 0) {
-            Alert.alert(
+            showInfo(
                 'Cast Cantrip',
                 `${spell.name} does not consume a spell slot.`,
-                [{ text: 'OK' }],
             );
             return;
         }
@@ -307,7 +324,7 @@ export default function SpellbookCard({
     };
 
     const useSpell = async () => {
-        if (!castSpell || castingLevel === null) return;
+        if (!castSpell || castingLevel === null || saving) return;
 
         const slot = character.spellSlots[castingLevel];
 
@@ -317,7 +334,7 @@ export default function SpellbookCard({
             slot.maximum <= 0 ||
             slot.current <= 0
         ) {
-            Alert.alert(
+            showInfo(
                 'No Spell Slots',
                 'That spell slot is no longer available.',
             );
@@ -329,6 +346,7 @@ export default function SpellbookCard({
                 Object.create(Object.getPrototypeOf(slot)),
                 slot,
             );
+
             updatedSlot.use();
 
             const updatedSpellSlots = {
@@ -350,7 +368,7 @@ export default function SpellbookCard({
                 setCastingLevel(null);
             }
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Cannot Cast Spell',
                 error instanceof Error
                     ? error.message
@@ -360,36 +378,30 @@ export default function SpellbookCard({
     };
 
     const removeSpell = (spell: Spell) => {
-        Alert.alert(
-            'Remove Spell',
-            `Remove ${spell.name} from your spellbook?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Remove',
-                    style: 'destructive',
-                    onPress: async () => {
-                        const updatedSpellbook = Object.assign(
-                            Object.create(
-                                Object.getPrototypeOf(character.spellbook),
-                            ),
-                            character.spellbook,
-                            {
-                                spells: spells.filter(
-                                    (item) => item !== spell,
-                                ),
-                            },
-                        );
-
-                        await persist(
-                            cloneCharacter(character, {
-                                spellbook: updatedSpellbook,
-                            }),
-                        );
+        showConfirm({
+            title: 'Remove Spell',
+            message: `Remove ${spell.name} from your spellbook?`,
+            cancelLabel: 'Cancel',
+            confirmLabel: 'Remove',
+            destructive: true,
+            onConfirm: async () => {
+                const updatedSpellbook = Object.assign(
+                    Object.create(
+                        Object.getPrototypeOf(character.spellbook),
+                    ),
+                    character.spellbook,
+                    {
+                        spells: spells.filter((item) => item !== spell),
                     },
-                },
-            ],
-        );
+                );
+
+                await persist(
+                    cloneCharacter(character, {
+                        spellbook: updatedSpellbook,
+                    }),
+                );
+            },
+        });
     };
 
     const inputStyle = {
@@ -440,10 +452,12 @@ export default function SpellbookCard({
                     gap: 8,
                 }}
             >
-                <View style={{
-                    flex: 1,
-                    gap: 4,
-                }}>
+                <View
+                    style={{
+                        flex: 1,
+                        gap: 4,
+                    }}
+                >
                     <Text
                         style={{
                             color: colors.accent,
@@ -453,8 +467,16 @@ export default function SpellbookCard({
                     >
                         {spell.name}
                     </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                        {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+
+                    <Text
+                        style={{
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                        }}
+                    >
+                        {spell.level === 0
+                            ? 'Cantrip'
+                            : `Level ${spell.level}`}
                         {' · '}
                         {spell.sourceClass || character.characterClass}
                         {' · '}
@@ -505,7 +527,10 @@ export default function SpellbookCard({
 
             {(spell.concentration || spell.ritual) && (
                 <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {[spell.concentration && 'Concentration', spell.ritual && 'Ritual']
+                    {[
+                        spell.concentration && 'Concentration',
+                        spell.ritual && 'Ritual',
+                    ]
                         .filter(Boolean)
                         .join(' · ')}
                 </Text>
@@ -591,6 +616,8 @@ export default function SpellbookCard({
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                             <Pressable
                                 onPress={() => {
+                                    if (saving) return;
+
                                     setEditingSpell(null);
                                     setForm({
                                         ...EMPTY_FORM,
@@ -598,6 +625,7 @@ export default function SpellbookCard({
                                     });
                                     setAddVisible(true);
                                 }}
+                                disabled={saving}
                                 style={buttonStyle}
                             >
                                 <Text style={buttonTextStyle}>+ Add Spell</Text>
@@ -605,6 +633,7 @@ export default function SpellbookCard({
 
                             <Pressable
                                 onPress={openPrepare}
+                                disabled={saving}
                                 style={buttonStyle}
                             >
                                 <Text style={buttonTextStyle}>
@@ -676,10 +705,7 @@ export default function SpellbookCard({
                 visible={addVisible}
                 transparent
                 animationType="fade"
-                onRequestClose={() => {
-                    setAddVisible(false);
-                    setEditingSpell(null);
-                }}
+                onRequestClose={closeSpellForm}
             >
                 <View
                     style={{
@@ -687,6 +713,7 @@ export default function SpellbookCard({
                         backgroundColor: 'rgba(0,0,0,0.65)',
                         justifyContent: 'center',
                         padding: 18,
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -698,6 +725,9 @@ export default function SpellbookCard({
                             borderColor: colors.border,
                             padding: 18,
                             gap: 12,
+                            maxWidth: 600,
+                            minWidth: 300,
+
                         }}
                     >
                         <Text
@@ -734,21 +764,35 @@ export default function SpellbookCard({
                                     style={inputStyle}
                                 />
                             </Field>
+
                             <Field label="Spellcasting Class" colors={colors}>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                <View
+                                    style={{
+                                        flexDirection: 'row',
+                                        flexWrap: 'wrap',
+                                        gap: 8,
+                                    }}
+                                >
                                     {characterClasses.map((className) => {
-                                        const selected = form.sourceClass === className;
+                                        const selected =
+                                            form.sourceClass === className;
 
                                         return (
                                             <Pressable
                                                 key={className}
-                                                onPress={() => updateForm('sourceClass', className)}
+                                                onPress={() =>
+                                                    updateForm(
+                                                        'sourceClass',
+                                                        className,
+                                                    )
+                                                }
                                                 style={[
                                                     buttonStyle,
                                                     {
-                                                        backgroundColor: selected
-                                                            ? colors.accent
-                                                            : colors.backgroundElement,
+                                                        backgroundColor:
+                                                            selected
+                                                                ? colors.accent
+                                                                : colors.backgroundElement,
                                                         borderColor: selected
                                                             ? colors.accent
                                                             : colors.border,
@@ -791,9 +835,7 @@ export default function SpellbookCard({
                                 >
                                     <TextInput
                                         value={form[key]}
-                                        onChangeText={(v) =>
-                                            updateForm(key, v)
-                                        }
+                                        onChangeText={(v) => updateForm(key, v)}
                                         placeholder={
                                             key === 'castingTime'
                                                 ? 'Action, Reaction, 1 minute'
@@ -803,9 +845,7 @@ export default function SpellbookCard({
                                                         ? 'Instantaneous, 1 minute'
                                                         : label
                                         }
-                                        placeholderTextColor={
-                                            colors.textSecondary
-                                        }
+                                        placeholderTextColor={colors.textSecondary}
                                         style={inputStyle}
                                     />
                                 </Field>
@@ -833,11 +873,10 @@ export default function SpellbookCard({
                                     >
                                         {label}
                                     </Text>
+
                                     <Switch
                                         value={form[key]}
-                                        onValueChange={(v) =>
-                                            updateForm(key, v)
-                                        }
+                                        onValueChange={(v) => updateForm(key, v)}
                                         trackColor={{
                                             false: colors.border,
                                             true: colors.accent,
@@ -856,10 +895,7 @@ export default function SpellbookCard({
                                     placeholderTextColor={colors.textSecondary}
                                     multiline
                                     textAlignVertical="top"
-                                    style={[
-                                        inputStyle,
-                                        { minHeight: 100 },
-                                    ]}
+                                    style={[inputStyle, { minHeight: 100 }]}
                                 />
                             </Field>
                         </ScrollView>
@@ -868,11 +904,10 @@ export default function SpellbookCard({
                             <ModalButton
                                 label="Cancel"
                                 colors={colors}
-                                onPress={() => {
-                                    setAddVisible(false);
-                                    setEditingSpell(null);
-                                }}
+                                onPress={closeSpellForm}
+                                disabled={saving}
                             />
+
                             <ModalButton
                                 label={
                                     saving
@@ -882,7 +917,7 @@ export default function SpellbookCard({
                                             : 'Save Spell'
                                 }
                                 colors={colors}
-                                onPress={submitSpell}
+                                onPress={() => void submitSpell()}
                                 disabled={saving}
                                 primary
                             />
@@ -895,7 +930,9 @@ export default function SpellbookCard({
                 visible={prepareVisible}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setPrepareVisible(false)}
+                onRequestClose={() => {
+                    if (!saving) setPrepareVisible(false);
+                }}
             >
                 <View
                     style={{
@@ -903,6 +940,7 @@ export default function SpellbookCard({
                         justifyContent: 'center',
                         padding: 18,
                         backgroundColor: 'rgba(0,0,0,0.65)',
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -914,6 +952,9 @@ export default function SpellbookCard({
                             borderWidth: 1,
                             borderColor: colors.border,
                             backgroundColor: colors.background,
+                            maxWidth: 600,
+                            minWidth: 300,
+
                         }}
                     >
                         <Text
@@ -940,10 +981,7 @@ export default function SpellbookCard({
                         <ScrollView contentContainerStyle={{ gap: 16 }}>
                             {Array.from({ length: 10 }, (_, level) => {
                                 const levelSpells = spells
-                                    .map((spell, index) => ({
-                                        spell,
-                                        index,
-                                    }))
+                                    .map((spell, index) => ({ spell, index }))
                                     .filter(
                                         ({ spell }) => spell.level === level,
                                     );
@@ -974,6 +1012,7 @@ export default function SpellbookCard({
                                             return (
                                                 <Pressable
                                                     key={key}
+                                                    disabled={saving}
                                                     onPress={() =>
                                                         setPreparedDraft(
                                                             (previous) => ({
@@ -1041,8 +1080,7 @@ export default function SpellbookCard({
                                                                 flex: 1,
                                                                 color: colors.text,
                                                                 fontSize: 14,
-                                                                fontWeight:
-                                                                    '600',
+                                                                fontWeight: '600',
                                                             }}
                                                         >
                                                             {spell.name}
@@ -1083,11 +1121,13 @@ export default function SpellbookCard({
                                 label="Cancel"
                                 colors={colors}
                                 onPress={() => setPrepareVisible(false)}
+                                disabled={saving}
                             />
+
                             <ModalButton
                                 label={saving ? 'Saving…' : 'Save'}
                                 colors={colors}
-                                onPress={savePreparedSpells}
+                                onPress={() => void savePreparedSpells()}
                                 disabled={saving}
                                 primary
                             />
@@ -1100,7 +1140,12 @@ export default function SpellbookCard({
                 visible={castSpell !== null}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setCastSpell(null)}
+                onRequestClose={() => {
+                    if (!saving) {
+                        setCastSpell(null);
+                        setCastingLevel(null);
+                    }
+                }}
             >
                 <View
                     style={{
@@ -1108,6 +1153,7 @@ export default function SpellbookCard({
                         justifyContent: 'center',
                         padding: 22,
                         backgroundColor: 'rgba(0,0,0,0.65)',
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -1118,6 +1164,8 @@ export default function SpellbookCard({
                             borderWidth: 1,
                             borderColor: colors.border,
                             backgroundColor: colors.background,
+                            maxWidth: 600,
+                            minWidth: 300,
                         }}
                     >
                         <Text
@@ -1178,6 +1226,7 @@ export default function SpellbookCard({
                                         return (
                                             <Pressable
                                                 key={level}
+                                                disabled={saving}
                                                 onPress={() =>
                                                     setCastingLevel(level)
                                                 }
@@ -1203,6 +1252,7 @@ export default function SpellbookCard({
                                                 >
                                                     Level {level}
                                                 </Text>
+
                                                 <Text
                                                     style={{
                                                         color: colors.textSecondary,
@@ -1223,13 +1273,18 @@ export default function SpellbookCard({
                             <ModalButton
                                 label="Cancel"
                                 colors={colors}
-                                onPress={() => setCastSpell(null)}
+                                onPress={() => {
+                                    setCastSpell(null);
+                                    setCastingLevel(null);
+                                }}
+                                disabled={saving}
                             />
+
                             {availableLevels.length > 0 && (
                                 <ModalButton
                                     label={saving ? 'Casting…' : 'Use Spell'}
                                     colors={colors}
-                                    onPress={useSpell}
+                                    onPress={() => void useSpell()}
                                     disabled={
                                         saving || castingLevel === null
                                     }

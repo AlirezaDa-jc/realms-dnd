@@ -1,3 +1,4 @@
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors, Spacing } from '@/constants/theme';
 import { setActiveCharacter } from '@/database/active-character';
 import {
@@ -18,7 +19,7 @@ import * as Sharing from 'expo-sharing';
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -26,6 +27,7 @@ import {
     View,
     useColorScheme,
 } from 'react-native';
+
 
 type CharacterEntry = {
     id: string;
@@ -38,7 +40,7 @@ export default function CharactersScreen() {
     const isDark = scheme === 'dark';
     const colors = Colors[isDark ? 'dark' : 'light'];
     const router = useRouter();
-
+    const { showDialog, showInfo, showConfirm } = useDialog();
     const [characters, setCharacters] = useState<CharacterEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
@@ -100,55 +102,122 @@ export default function CharactersScreen() {
         return { base64, extension };
     }
 
-    async function exportCharacter(entry: CharacterEntry) {
-        try {
-            const available = await Sharing.isAvailableAsync();
+    async function exportCharacter(character: Character) {
+        if (busy) return;
+        setBusy(true);
 
-            if (!available) {
-                Alert.alert(
-                    'Export unavailable',
-                    'File sharing is not available on this device.',
-                );
-                return;
+        try {
+            const data = JSON.parse(characterToJSON(character));
+
+            if (character.portraitPath) {
+                try {
+                    if (Platform.OS === 'web') {
+                        const response = await fetch(character.portraitPath);
+
+                        if (response.ok) {
+                            const blob = await response.blob();
+
+                            const base64 = await new Promise<string>((resolve, reject) => {
+                                const reader = new FileReader();
+
+                                reader.onloadend = () => {
+                                    const result = reader.result;
+
+                                    if (typeof result !== 'string') {
+                                        reject(new Error('Could not read the character portrait.'));
+                                        return;
+                                    }
+
+                                    resolve(result.split(',')[1] ?? '');
+                                };
+
+                                reader.onerror = () => {
+                                    reject(new Error('Could not read the character portrait.'));
+                                };
+
+                                reader.readAsDataURL(blob);
+                            });
+
+                            if (base64) {
+                                const extension =
+                                    blob.type === 'image/png' ? 'png' :
+                                        blob.type === 'image/webp' ? 'webp' :
+                                            blob.type === 'image/jpeg' ? 'jpg' :
+                                                'jpg';
+
+                                data.portraitData = { base64, extension };
+                            }
+                        }
+                    } else {
+                        const portraitInfo = await FileSystem.getInfoAsync(
+                            character.portraitPath
+                        );
+
+                        if (portraitInfo.exists) {
+                            const base64 = await FileSystem.readAsStringAsync(
+                                character.portraitPath,
+                                { encoding: FileSystem.EncodingType.Base64 }
+                            );
+
+                            const extension =
+                                character.portraitPath.split('.').pop()?.toLowerCase() ?? 'jpg';
+
+                            data.portraitData = {
+                                base64,
+                                extension: ['jpg', 'jpeg', 'png', 'webp'].includes(extension)
+                                    ? extension
+                                    : 'jpg',
+                            };
+                        }
+                    }
+                } catch (portraitError) {
+                    console.warn('Could not include character portrait in export:', portraitError);
+                }
             }
 
-            const exportData = JSON.parse(
-                characterToJSON(entry.character),
-            );
+            const json = JSON.stringify(data, null, 2);
+            const filename = `${character.name.replace(/[<>:"/\\|?*]/g, '_') || 'character'}.json`;
 
-            const portraitData = await getPortraitData(
-                entry.character.portraitPath,
-            );
+            if (Platform.OS === 'web') {
+                const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
 
-            // Embed the image; never export the original device path.
-            exportData.portraitData = portraitData;
-            exportData.portraitPath = '';
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
 
-            const json = JSON.stringify(exportData, null, 2);
+                showInfo('Export complete', `${character.name} was downloaded successfully.`);
+            } else {
+                if (!(await Sharing.isAvailableAsync())) {
+                    showInfo('Sharing unavailable', 'Sharing is not available on this device.');
+                    return;
+                }
 
-            const safeName = (entry.character.name || 'character')
-                .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
-                .trim();
+                const fileUri = `${FileSystem.cacheDirectory}${filename}`;
 
-            const fileUri =
-                `${FileSystem.cacheDirectory}${safeName || 'character'}.json`;
+                await FileSystem.writeAsStringAsync(fileUri, json, {
+                    encoding: FileSystem.EncodingType.UTF8,
+                });
 
-            await FileSystem.writeAsStringAsync(fileUri, json, {
-                encoding: FileSystem.EncodingType.UTF8,
-            });
-
-            await Sharing.shareAsync(fileUri, {
-                mimeType: 'application/json',
-                dialogTitle: `Export ${entry.character.name || 'Character'}`,
-                UTI: 'public.json',
-            });
+                await Sharing.shareAsync(fileUri, {
+                    mimeType: 'application/json',
+                    dialogTitle: `Export ${character.name}`,
+                    UTI: 'public.json',
+                });
+            }
         } catch (err) {
-            Alert.alert(
+            console.error('Character export failed:', err);
+
+            showInfo(
                 'Export failed',
-                err instanceof Error
-                    ? err.message
-                    : 'Could not export character.',
+                err instanceof Error ? err.message : 'The character could not be exported.'
             );
+        } finally {
+            setBusy(false);
         }
     }
 
@@ -158,22 +227,46 @@ export default function CharactersScreen() {
         setBusy(true);
 
         try {
+            let json: string;
 
+            if (Platform.OS === 'web') {
+                const file = await new Promise<{
+                    text: () => Promise<string>;
+                } | null>((resolve) => {
+                    const input = document.createElement('input');
 
-            const result = await File.pickFileAsync({
-                mimeTypes: ['application/json', 'text/json'],
-            });
+                    input.type = 'file';
+                    input.accept = '.json,application/json';
 
-            if (result.canceled) return;
+                    input.onchange = () => {
+                        resolve(input.files?.[0] ?? null);
+                    };
 
-            const file = result.result;
-            const json = await file.text();
+                    // Handle cancellation in browsers that support this event.
+                    input.oncancel = () => resolve(null);
+
+                    input.click();
+                });
+
+                if (!file) return;
+
+                json = await file.text();
+            } else {
+                const result = await File.pickFileAsync({
+                    mimeTypes: ['application/json', 'text/json'],
+                });
+
+                if (result.canceled) return;
+
+                json = await result.result.text();
+            }
+
             const data = JSON.parse(json);
-            const portraitData = data.portraitData;
 
+            const portraitData = data.portraitData;
             delete data.portraitData;
 
-            // Old exports may contain a path belonging to another device.
+            // Never reuse a path from the device that created the export.
             data.portraitPath = '';
 
             const imported = characterFromJSON(JSON.stringify(data));
@@ -192,44 +285,60 @@ export default function CharactersScreen() {
             imported.id = id;
 
             if (portraitData?.base64) {
-                const portraitsDirectory =
-                    `${FileSystem.documentDirectory}portraits/`;
-
-                await FileSystem.makeDirectoryAsync(portraitsDirectory, {
-                    intermediates: true,
-                });
-
                 const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
                 const extension = allowedExtensions.includes(
                     portraitData.extension?.toLowerCase(),
                 )
                     ? portraitData.extension.toLowerCase()
                     : 'jpg';
 
-                const portraitUri =
-                    `${portraitsDirectory}${id}.${extension}`;
+                if (Platform.OS === 'web') {
+                    const mimeType =
+                        extension === 'png'
+                            ? 'image/png'
+                            : extension === 'webp'
+                                ? 'image/webp'
+                                : extension === 'jpg' || extension === 'jpeg'
+                                    ? 'image/jpeg'
+                                    : 'image/jpeg';
 
-                await FileSystem.writeAsStringAsync(
-                    portraitUri,
-                    portraitData.base64,
-                    {
-                        encoding: FileSystem.EncodingType.Base64,
-                    },
-                );
+                    imported.portraitPath =
+                        `data:${mimeType};base64,${portraitData.base64}`;
+                } else {
+                    const portraitsDirectory =
+                        `${FileSystem.documentDirectory}portraits/`;
 
-                imported.portraitPath = portraitUri;
+                    await FileSystem.makeDirectoryAsync(portraitsDirectory, {
+                        intermediates: true,
+                    });
+
+                    const portraitUri =
+                        `${portraitsDirectory}${id}.${extension}`;
+
+                    await FileSystem.writeAsStringAsync(
+                        portraitUri,
+                        portraitData.base64,
+                        {
+                            encoding: FileSystem.EncodingType.Base64,
+                        },
+                    );
+
+                    imported.portraitPath = portraitUri;
+                }
             }
 
             await saveCharacter(imported, id);
             await refreshCharacters();
 
-            Alert.alert(
+            showInfo(
                 'Import complete',
                 `${imported.name} was imported successfully.`,
             );
         } catch (err) {
-            console.error(err)
-            Alert.alert(
+            console.error('Character import failed:', err);
+
+            showInfo(
                 'Import failed',
                 err instanceof Error
                     ? err.message
@@ -239,35 +348,35 @@ export default function CharactersScreen() {
             setBusy(false);
         }
     }
+
     function confirmDelete(entry: CharacterEntry) {
-        Alert.alert(
-            'Delete character',
-            `Delete ${entry.character.name || 'this character'}? This cannot be undone.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            setBusy(true);
-                            await deleteCharacter(entry.id);
-                            await refreshCharacters();
-                        } catch (err) {
-                            Alert.alert(
-                                'Delete failed',
-                                err instanceof Error
-                                    ? err.message
-                                    : 'Could not delete this character.',
-                            );
-                        } finally {
-                            setBusy(false);
-                        }
-                    },
-                },
-            ],
-        );
+        showConfirm({
+            title: 'Delete character',
+            message: `Delete ${entry.character.name || 'this character'}? This cannot be undone.`,
+            cancelLabel: 'Cancel',
+            confirmLabel: 'Delete',
+            destructive: true,
+            onConfirm: async () => {
+                setBusy(true);
+
+                try {
+                    await deleteCharacter(entry.id);
+                    await refreshCharacters();
+                } catch (err) {
+                    showInfo(
+                        'Delete failed',
+                        err instanceof Error
+                            ? err.message
+                            : 'Could not delete this character.',
+                    );
+                } finally {
+                    setBusy(false);
+                }
+            },
+        });
     }
+
+
 
     async function openCharacter(id: string) {
         if (busy) return;
@@ -278,7 +387,7 @@ export default function CharactersScreen() {
             await setActiveCharacter(id);
             router.replace('/');
         } catch (err) {
-            Alert.alert(
+            showInfo(
                 'Could not open character',
                 err instanceof Error
                     ? err.message
@@ -332,19 +441,23 @@ export default function CharactersScreen() {
             const newId = await duplicateCharacter(entry.id);
             await refreshCharacters();
 
-            Alert.alert(
-                'Character Duplicated',
-                `${entry.character.name || 'Character'} was duplicated successfully.`,
-                [
+            showDialog({
+                title: 'Character Duplicated',
+                message: `${entry.character.name || 'Character'} was duplicated successfully.`,
+                actions: [
                     {
-                        text: 'Edit Copy',
+                        label: 'Edit Copy',
+                        variant: 'primary',
                         onPress: () => editCharacter(newId),
                     },
-                    { text: 'OK' },
+                    {
+                        label: 'OK',
+                        variant: 'secondary',
+                    },
                 ],
-            );
+            });
         } catch (err) {
-            Alert.alert(
+            showInfo(
                 'Duplicate Failed',
                 err instanceof Error
                     ? err.message

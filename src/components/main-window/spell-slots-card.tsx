@@ -1,10 +1,10 @@
 import { Colors } from '@/constants/theme';
 import { Character } from '@/models/character';
 import { SpellSlot } from '@/models/spell-slot';
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     ScrollView,
@@ -31,6 +31,7 @@ export default function SpellSlotsCard({
 }: SpellSlotsCardProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [editVisible, setEditVisible] = useState(false);
     const [recoverVisible, setRecoverVisible] = useState(false);
@@ -67,6 +68,8 @@ export default function SpellSlotsCard({
         ) as Character;
 
     const openEditSlots = () => {
+        if (saving) return;
+
         setSlotDrafts(
             Array.from({ length: 9 }, (_, index) => {
                 const level = index + 1;
@@ -79,6 +82,7 @@ export default function SpellSlotsCard({
                 };
             }),
         );
+
         setEditVisible(true);
     };
 
@@ -99,6 +103,8 @@ export default function SpellSlotsCard({
     };
 
     const saveSlots = async () => {
+        if (saving) return;
+
         const parsed = slotDrafts.map((draft) => ({
             level: draft.level,
             maximum: Number(draft.maximum),
@@ -115,7 +121,7 @@ export default function SpellSlotsCard({
         );
 
         if (invalid) {
-            Alert.alert(
+            showInfo(
                 'Invalid Spell Slots',
                 `Level ${invalid.level}: current slots must be between 0 and the maximum.`,
             );
@@ -135,12 +141,14 @@ export default function SpellSlotsCard({
                 );
             }
 
-            updatedCharacter.logs.push('Updated spell slot configuration.');
+            updatedCharacter.logs.push(
+                'Updated spell slot configuration.',
+            );
 
             await onUpdate(updatedCharacter);
             setEditVisible(false);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Could Not Save',
                 error instanceof Error
                     ? error.message
@@ -152,11 +160,15 @@ export default function SpellSlotsCard({
     };
 
     const useSpellSlot = async (level: number) => {
+        if (saving) return;
+
         const slot = character.spellSlots[level];
 
         if (!slot || slot.current <= 0) return;
 
         try {
+            setSaving(true);
+
             const updatedCharacter = makeUpdatedCharacter();
             const updatedSlot = updatedCharacter.getSpellSlots(level);
 
@@ -168,22 +180,26 @@ export default function SpellSlotsCard({
 
             await onUpdate(updatedCharacter);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Could Not Use Spell Slot',
                 error instanceof Error
                     ? error.message
                     : 'Failed to use spell slot.',
             );
+        } finally {
+            setSaving(false);
         }
     };
 
     const openRecoverSlots = () => {
+        if (saving) return;
+
         const recoverable = slots.filter(
             (slot) => slot.current < slot.maximum,
         );
 
         if (recoverable.length === 0) {
-            Alert.alert(
+            showInfo(
                 'Recover Spell Slots',
                 'All configured spell slots are already available.',
             );
@@ -210,6 +226,8 @@ export default function SpellSlotsCard({
         : 0;
 
     const saveRecovery = async () => {
+        if (saving) return;
+
         const amount = Number(recoverAmount);
         const reason = recoverReason.trim();
 
@@ -219,7 +237,7 @@ export default function SpellSlotsCard({
             amount <= 0 ||
             !reason
         ) {
-            Alert.alert(
+            showInfo(
                 'Invalid Recovery',
                 'Select a level, enter a valid amount, and provide a reason.',
             );
@@ -227,7 +245,7 @@ export default function SpellSlotsCard({
         }
 
         if (amount > remainingToRecover) {
-            Alert.alert(
+            showInfo(
                 'Invalid Amount',
                 `You can recover at most ${remainingToRecover} slot(s) at this level.`,
             );
@@ -249,7 +267,7 @@ export default function SpellSlotsCard({
             await onUpdate(updatedCharacter);
             setRecoverVisible(false);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Could Not Recover Slots',
                 error instanceof Error
                     ? error.message
@@ -290,7 +308,8 @@ export default function SpellSlotsCard({
 
     const modalStyle = {
         width: '100%' as const,
-        maxWidth: 440,
+        maxWidth: 600,
+        minWidth: 300,
         maxHeight: '90%' as const,
         padding: 20,
         gap: 16,
@@ -394,6 +413,7 @@ export default function SpellSlotsCard({
                                             >
                                                 LEVEL {slot.level}
                                             </Text>
+
                                             <Text
                                                 style={{
                                                     color: colors.textSecondary,
@@ -406,7 +426,9 @@ export default function SpellSlotsCard({
                                         </View>
 
                                         <Pressable
-                                            disabled={slot.current === 0}
+                                            disabled={
+                                                saving || slot.current === 0
+                                            }
                                             onPress={() =>
                                                 void useSpellSlot(slot.level)
                                             }
@@ -415,7 +437,8 @@ export default function SpellSlotsCard({
                                                 {
                                                     paddingVertical: 6,
                                                     opacity:
-                                                        slot.current === 0
+                                                        saving ||
+                                                            slot.current === 0
                                                             ? 0.45
                                                             : 1,
                                                 },
@@ -469,8 +492,12 @@ export default function SpellSlotsCard({
 
                     <View style={{ gap: 8 }}>
                         <Pressable
+                            disabled={saving}
                             onPress={openEditSlots}
-                            style={buttonStyle}
+                            style={[
+                                buttonStyle,
+                                { opacity: saving ? 0.5 : 1 },
+                            ]}
                         >
                             <Text style={buttonTextStyle}>
                                 + Edit Spell Slots
@@ -478,8 +505,12 @@ export default function SpellSlotsCard({
                         </Pressable>
 
                         <Pressable
+                            disabled={saving}
                             onPress={openRecoverSlots}
-                            style={buttonStyle}
+                            style={[
+                                buttonStyle,
+                                { opacity: saving ? 0.5 : 1 },
+                            ]}
                         >
                             <Text style={buttonTextStyle}>
                                 Recover Spell Slots
@@ -494,7 +525,9 @@ export default function SpellSlotsCard({
                 visible={editVisible}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setEditVisible(false)}
+                onRequestClose={() => {
+                    if (!saving) setEditVisible(false);
+                }}
             >
                 <View
                     style={{
@@ -549,6 +582,7 @@ export default function SpellSlotsCard({
                                             <Text style={labelStyle}>
                                                 Current
                                             </Text>
+
                                             <TextInput
                                                 value={draft.current}
                                                 onChangeText={(value) =>
@@ -558,6 +592,7 @@ export default function SpellSlotsCard({
                                                         value,
                                                     )
                                                 }
+                                                editable={!saving}
                                                 keyboardType="number-pad"
                                                 selectTextOnFocus
                                                 style={inputStyle}
@@ -568,6 +603,7 @@ export default function SpellSlotsCard({
                                             <Text style={labelStyle}>
                                                 Maximum
                                             </Text>
+
                                             <TextInput
                                                 value={draft.maximum}
                                                 onChangeText={(value) =>
@@ -577,6 +613,7 @@ export default function SpellSlotsCard({
                                                         value,
                                                     )
                                                 }
+                                                editable={!saving}
                                                 keyboardType="number-pad"
                                                 selectTextOnFocus
                                                 style={inputStyle}
@@ -600,6 +637,7 @@ export default function SpellSlotsCard({
                                     saving,
                                 )}
                             </View>
+
                             <View style={{ flex: 1 }}>
                                 {renderModalButton(
                                     saving ? 'Saving...' : 'Save Slots',
@@ -617,7 +655,9 @@ export default function SpellSlotsCard({
                 visible={recoverVisible}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setRecoverVisible(false)}
+                onRequestClose={() => {
+                    if (!saving) setRecoverVisible(false);
+                }}
             >
                 <View
                     style={{
@@ -633,9 +673,7 @@ export default function SpellSlotsCard({
                             Recover Spell Slots
                         </Text>
 
-                        <Text style={labelStyle}>
-                            SPELL SLOT LEVEL
-                        </Text>
+                        <Text style={labelStyle}>SPELL SLOT LEVEL</Text>
 
                         <View
                             style={{
@@ -650,6 +688,7 @@ export default function SpellSlotsCard({
                                 return (
                                     <Pressable
                                         key={slot.level}
+                                        disabled={saving}
                                         onPress={() => {
                                             setRecoverLevel(slot.level);
                                             setRecoverAmount('1');
@@ -661,6 +700,7 @@ export default function SpellSlotsCard({
                                                 backgroundColor: selected
                                                     ? colors.accent
                                                     : colors.backgroundElement,
+                                                opacity: saving ? 0.5 : 1,
                                             },
                                         ]}
                                     >
@@ -685,6 +725,7 @@ export default function SpellSlotsCard({
                             <Text style={labelStyle}>
                                 NUMBER TO RECOVER (MAX {remainingToRecover})
                             </Text>
+
                             <TextInput
                                 value={recoverAmount}
                                 onChangeText={(value) => {
@@ -692,6 +733,7 @@ export default function SpellSlotsCard({
                                         setRecoverAmount(value);
                                     }
                                 }}
+                                editable={!saving}
                                 keyboardType="number-pad"
                                 selectTextOnFocus
                                 style={inputStyle}
@@ -700,9 +742,11 @@ export default function SpellSlotsCard({
 
                         <View style={{ gap: 6 }}>
                             <Text style={labelStyle}>REASON</Text>
+
                             <TextInput
                                 value={recoverReason}
                                 onChangeText={setRecoverReason}
+                                editable={!saving}
                                 placeholder="e.g. Arcane Recovery"
                                 placeholderTextColor={colors.textSecondary}
                                 style={inputStyle}
@@ -722,6 +766,7 @@ export default function SpellSlotsCard({
                                     saving,
                                 )}
                             </View>
+
                             <View style={{ flex: 1 }}>
                                 {renderModalButton(
                                     saving ? 'Recovering...' : 'Recover',

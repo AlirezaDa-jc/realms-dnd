@@ -1,10 +1,10 @@
 import { Colors } from '@/constants/theme';
+import { useDialog } from '@/components/dialog/realms-dialog';
 import type { Character } from '@/models/character';
 import { CharacterResource, type RecoveryType } from '@/models/resource';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     ScrollView,
@@ -53,6 +53,7 @@ export default function ResourcesCard({
 }: ResourcesCardProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo, showConfirm } = useDialog();
 
     const [modalMode, setModalMode] = useState<ModalMode>(null);
     const [form, setForm] = useState<ResourceForm>({ ...EMPTY_FORM });
@@ -155,7 +156,7 @@ export default function ResourcesCard({
 
     function openEditModal() {
         if (resources.length === 0) {
-            Alert.alert(
+            showInfo(
                 'Edit Resources',
                 'No resources available to edit.',
             );
@@ -182,7 +183,7 @@ export default function ResourcesCard({
         );
 
         if (recoverable.length === 0) {
-            Alert.alert(
+            showInfo(
                 'Recover Resources',
                 'No resources are available to recover.',
             );
@@ -239,7 +240,7 @@ export default function ResourcesCard({
 
             await onUpdate(updatedCharacter);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Cannot Use Resource',
                 error instanceof Error
                     ? error.message
@@ -256,7 +257,7 @@ export default function ResourcesCard({
         const current = Number(form.current);
 
         if (!name) {
-            Alert.alert('Missing Name', 'Enter a resource name.');
+            showInfo('Missing Name', 'Enter a resource name.');
             return;
         }
 
@@ -265,7 +266,7 @@ export default function ResourcesCard({
             maximum < 0 ||
             maximum > 9999
         ) {
-            Alert.alert(
+            showInfo(
                 'Invalid Maximum',
                 'Maximum uses must be an integer between 0 and 9999.',
             );
@@ -277,7 +278,7 @@ export default function ResourcesCard({
             current < 0 ||
             current > maximum
         ) {
-            Alert.alert(
+            showInfo(
                 'Invalid Current Amount',
                 'Current uses must be between 0 and the maximum.',
             );
@@ -291,7 +292,7 @@ export default function ResourcesCard({
         );
 
         if (duplicate) {
-            Alert.alert(
+            showInfo(
                 'Duplicate Resource',
                 'A resource with this name already exists. Class actions refer to resources by name, so each name must be unique.',
             );
@@ -305,7 +306,12 @@ export default function ResourcesCard({
 
             if (modalMode === 'add') {
                 updatedCharacter.resources.push(
-                    new CharacterResource(name, maximum, maximum, form.recovery),
+                    new CharacterResource(
+                        name,
+                        maximum,
+                        maximum,
+                        form.recovery,
+                    ),
                 );
 
                 updatedCharacter.logs.push(
@@ -344,7 +350,7 @@ export default function ResourcesCard({
             await onUpdate(updatedCharacter);
             setModalMode(null);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save Failed',
                 error instanceof Error
                     ? error.message
@@ -362,7 +368,7 @@ export default function ResourcesCard({
         const reason = recoverReason.trim();
 
         if (!Number.isInteger(amount) || amount <= 0) {
-            Alert.alert(
+            showInfo(
                 'Invalid Amount',
                 'Enter a positive whole number.',
             );
@@ -370,7 +376,7 @@ export default function ResourcesCard({
         }
 
         if (!reason) {
-            Alert.alert(
+            showInfo(
                 'Missing Reason',
                 'Enter a reason for recovering this resource.',
             );
@@ -380,7 +386,7 @@ export default function ResourcesCard({
         const missing = selectedResource.maximum - selectedResource.current;
 
         if (amount > missing) {
-            Alert.alert(
+            showInfo(
                 'Invalid Amount',
                 `You can recover at most ${missing} use(s).`,
             );
@@ -388,7 +394,7 @@ export default function ResourcesCard({
         }
 
         if (selectedResource.recovery === 'never') {
-            Alert.alert(
+            showInfo(
                 'Cannot Recover',
                 'This resource is configured for no automatic recovery.',
             );
@@ -416,7 +422,7 @@ export default function ResourcesCard({
             await onUpdate(updatedCharacter);
             setModalMode(null);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Recovery Failed',
                 error instanceof Error
                     ? error.message
@@ -428,22 +434,20 @@ export default function ResourcesCard({
     }
 
     function confirmDelete() {
-        if (selectedName === null) return;
+        if (selectedName === null || saving) return;
 
         const resourceName = selectedName;
 
-        Alert.alert(
-            'Delete Resource',
-            `Delete "${resourceName}"? Any class actions using this resource will no longer have a valid resource.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => void deleteResource(resourceName),
-                },
-            ],
-        );
+        showConfirm({
+            title: 'Delete Resource',
+            message: `Delete "${resourceName}"? Any class actions using this resource will no longer have a valid resource.`,
+            cancelLabel: 'Cancel',
+            confirmLabel: 'Delete',
+            destructive: true,
+            onConfirm: async () => {
+                await deleteResource(resourceName);
+            },
+        });
     }
 
     async function deleteResource(name: string) {
@@ -461,7 +465,7 @@ export default function ResourcesCard({
             await onUpdate(updatedCharacter);
             setModalMode(null);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Delete Failed',
                 error instanceof Error
                     ? error.message
@@ -603,7 +607,9 @@ export default function ResourcesCard({
                                                     {resource.name}
                                                 </Text>
                                                 <Text style={styles.secondary}>
-                                                    {recoveryLabel(resource.recovery)}
+                                                    {recoveryLabel(
+                                                        resource.recovery,
+                                                    )}
                                                 </Text>
                                             </View>
 
@@ -614,7 +620,8 @@ export default function ResourcesCard({
                                                     fontWeight: '700',
                                                 }}
                                             >
-                                                {resource.current}/{resource.maximum}
+                                                {resource.current}/
+                                                {resource.maximum}
                                             </Text>
 
                                             <Pressable
@@ -623,7 +630,9 @@ export default function ResourcesCard({
                                                     resource.current <= 0
                                                 }
                                                 onPress={() =>
-                                                    void useResource(resource.name)
+                                                    void useResource(
+                                                        resource.name,
+                                                    )
                                                 }
                                                 style={[
                                                     styles.button,
@@ -637,7 +646,9 @@ export default function ResourcesCard({
                                                     },
                                                 ]}
                                             >
-                                                <Text style={styles.buttonText}>
+                                                <Text
+                                                    style={styles.buttonText}
+                                                >
                                                     Use
                                                 </Text>
                                             </Pressable>
@@ -655,7 +666,8 @@ export default function ResourcesCard({
                                                 style={{
                                                     height: '100%',
                                                     width: `${percentage}%`,
-                                                    backgroundColor: colors.accent,
+                                                    backgroundColor:
+                                                        colors.accent,
                                                 }}
                                             />
                                         </View>
@@ -673,12 +685,22 @@ export default function ResourcesCard({
                     />
 
                     <View style={{ gap: 8 }}>
-                        <Pressable onPress={openAddModal} style={styles.button}>
-                            <Text style={styles.buttonText}>+ Add Resource</Text>
+                        <Pressable
+                            onPress={openAddModal}
+                            style={styles.button}
+                        >
+                            <Text style={styles.buttonText}>
+                                + Add Resource
+                            </Text>
                         </Pressable>
 
-                        <Pressable onPress={openEditModal} style={styles.button}>
-                            <Text style={styles.buttonText}>Edit Resources</Text>
+                        <Pressable
+                            onPress={openEditModal}
+                            style={styles.button}
+                        >
+                            <Text style={styles.buttonText}>
+                                Edit Resources
+                            </Text>
                         </Pressable>
 
                         <Pressable
@@ -697,7 +719,9 @@ export default function ResourcesCard({
                 visible={modalMode !== null}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setModalMode(null)}
+                onRequestClose={() => {
+                    if (!saving) setModalMode(null);
+                }}
             >
                 <View
                     style={{
@@ -711,7 +735,8 @@ export default function ResourcesCard({
                     <View
                         style={{
                             width: '100%',
-                            maxWidth: 440,
+                            maxWidth: 600,
+                            minWidth: 300,
                             maxHeight: '90%',
                             padding: 20,
                             borderRadius: 16,
@@ -742,7 +767,10 @@ export default function ResourcesCard({
                                             choice(
                                                 `${resource.name} (${resource.current}/${resource.maximum})`,
                                                 selectedName === resource.name,
-                                                () => selectResource(resource.name),
+                                                () =>
+                                                    selectResource(
+                                                        resource.name,
+                                                    ),
                                             ),
                                         )}
                                     </View>
@@ -763,7 +791,10 @@ export default function ResourcesCard({
                                             choice(
                                                 `${resource.name} (${resource.current}/${resource.maximum})`,
                                                 selectedName === resource.name,
-                                                () => selectResource(resource.name),
+                                                () =>
+                                                    selectResource(
+                                                        resource.name,
+                                                    ),
                                             ),
                                         )}
                                     </View>
@@ -786,6 +817,7 @@ export default function ResourcesCard({
                                                 }
                                                 style={styles.input}
                                                 maxLength={100}
+                                                editable={!saving}
                                             />
                                         </View>
 
@@ -796,21 +828,25 @@ export default function ResourcesCard({
                                             <TextInput
                                                 value={form.maximum}
                                                 onChangeText={(value) => {
-                                                    if (!/^\d*$/.test(value)) return;
+                                                    if (!/^\d*$/.test(value)) {
+                                                        return;
+                                                    }
 
                                                     setForm((previous) => ({
                                                         ...previous,
                                                         maximum: value,
                                                         current:
                                                             value !== '' &&
-                                                                Number(previous.current) >
-                                                                Number(value)
+                                                                Number(
+                                                                    previous.current,
+                                                                ) > Number(value)
                                                                 ? value
                                                                 : previous.current,
                                                     }));
                                                 }}
                                                 keyboardType="number-pad"
                                                 style={styles.input}
+                                                editable={!saving}
                                             />
                                         </View>
 
@@ -831,6 +867,7 @@ export default function ResourcesCard({
                                                     }}
                                                     keyboardType="number-pad"
                                                     style={styles.input}
+                                                    editable={!saving}
                                                 />
                                             </View>
                                         )}
@@ -884,11 +921,14 @@ export default function ResourcesCard({
                                             }}
                                             keyboardType="number-pad"
                                             style={styles.input}
+                                            editable={!saving}
                                         />
                                     </View>
 
                                     <View style={{ gap: 6 }}>
-                                        <Text style={styles.label}>REASON</Text>
+                                        <Text style={styles.label}>
+                                            REASON
+                                        </Text>
                                         <TextInput
                                             value={recoverReason}
                                             onChangeText={setRecoverReason}
@@ -897,6 +937,7 @@ export default function ResourcesCard({
                                                 colors.textSecondary
                                             }
                                             style={styles.input}
+                                            editable={!saving}
                                         />
                                     </View>
                                 </>
@@ -939,9 +980,14 @@ export default function ResourcesCard({
                                 <Pressable
                                     disabled={saving}
                                     onPress={() => setModalMode(null)}
-                                    style={styles.button}
+                                    style={[
+                                        styles.button,
+                                        saving && { opacity: 0.5 },
+                                    ]}
                                 >
-                                    <Text style={styles.buttonText}>Cancel</Text>
+                                    <Text style={styles.buttonText}>
+                                        Cancel
+                                    </Text>
                                 </Pressable>
                             </View>
 

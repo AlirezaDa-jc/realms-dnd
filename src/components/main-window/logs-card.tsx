@@ -103,13 +103,15 @@ export default function CharacterLogCard({
                     <View
                         style={{
                             width: '100%',
-                            maxWidth: 650,
+                            maxWidth: 600,
+                            minWidth: 300,
                             height: '75%',
                             backgroundColor: colors.background,
                             borderWidth: 1,
                             borderColor: colors.border,
                             borderRadius: 18,
                             overflow: 'hidden',
+
                         }}
                     >
                         <View

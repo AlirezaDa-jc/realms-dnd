@@ -1,9 +1,10 @@
+
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     ScrollView,
@@ -55,6 +56,7 @@ export default function Defenses({
     const scheme = useColorScheme();
     const isDark = scheme === 'dark';
     const colors = Colors[isDark ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedAttribute, setSelectedAttribute] =
@@ -116,60 +118,69 @@ export default function Defenses({
         setNewItem('');
     }
 
-async function addDefense() {
-    const value = newItem.trim();
+    async function addDefense() {
+        const value = newItem.trim();
 
-    if (!value || saving) return;
+        if (!value || saving) return;
 
-    const currentItems = character[selectedAttribute];
+        const currentItems = character[selectedAttribute];
 
-    const alreadyExists = currentItems.some(
-        (item) => item.toLocaleLowerCase() === value.toLocaleLowerCase(),
-    );
+        const alreadyExists = currentItems.some(
+            (item) => item.toLocaleLowerCase() === value.toLocaleLowerCase(),
+        );
 
-    if (alreadyExists) {
-        Alert.alert('Already Exists', 'This defense already exists.');
-        return;
+        if (alreadyExists) {
+            showInfo(
+                'Already Exists',
+                'This defense already exists.',
+            );
+            return;
+        }
+
+        await updateDefenses([...currentItems, value]);
+
+        // Clear the input only after the save succeeds.
+        if (!saving) {
+            setNewItem('');
+        }
     }
 
-    setNewItem('');
-    await updateDefenses([...currentItems, value]);
-}
+    async function removeDefense(index: number) {
+        if (saving) return;
 
-async function removeDefense(index: number) {
-    if (saving) return;
+        const updatedItems = character[selectedAttribute].filter(
+            (_, i) => i !== index,
+        );
 
-    const updatedItems = character[selectedAttribute].filter(
-        (_, i) => i !== index,
-    );
-
-    await updateDefenses(updatedItems);
-}
+        await updateDefenses(updatedItems);
+    }
 
     async function updateDefenses(values: string[]) {
-    if (saving) return;
+        if (saving) return false;
 
-    const updatedCharacter = Object.assign(
-        Object.create(Object.getPrototypeOf(character)),
-        character,
-        {
-            [selectedAttribute]: values,
-        },
-    ) as Character;
+        const updatedCharacter = Object.assign(
+            Object.create(Object.getPrototypeOf(character)),
+            character,
+            {
+                [selectedAttribute]: values,
+            },
+        ) as Character;
 
-    setSaving(true);
+        setSaving(true);
 
-    try {
-        await onUpdate(updatedCharacter);
-    } catch (error) {
-        Alert.alert(
-            'Save failed',
-            error instanceof Error
-                ? error.message
-                : 'Could not save defenses.',
-        );
-    } finally {
-        setSaving(false);
+        try {
+            await onUpdate(updatedCharacter);
+            return true;
+        } catch (error) {
+            showInfo(
+                'Save failed',
+                error instanceof Error
+                    ? error.message
+                    : 'Could not save defenses.',
+            );
+            return false;
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -197,9 +208,9 @@ async function removeDefense(index: number) {
             <View style={{ gap: 12 }}>
                 {DEFENSE_GROUPS.map((group) => {
                     const items = character[group.attribute];
-                    if (items.length == 0) {
-                        return null;
-                    }
+
+                    if (items.length === 0) return null;
+
                     return (
                         <View
                             key={group.attribute}
@@ -210,24 +221,20 @@ async function removeDefense(index: number) {
                                 borderBottomColor: colors.border,
                             }}
                         >
-                            {items.length > 0 && (
-                                <Text style={styles.secondary}>
-                                    {group.heading}
-                                </Text>
-                            )}
+                            <Text style={styles.secondary}>
+                                {group.heading}
+                            </Text>
 
-                            {items.length > 0 ? (
-                                <View style={{ gap: 4 }}>
-                                    {items.map((item, index) => (
-                                        <Text
-                                            key={`${item} -${index} `}
-                                            style={styles.text}
-                                        >
-                                            {'• '}{item}
-                                        </Text>
-                                    ))}
-                                </View>
-                            ) : null}
+                            <View style={{ gap: 4 }}>
+                                {items.map((item, index) => (
+                                    <Text
+                                        key={`${item}-${index}`}
+                                        style={styles.text}
+                                    >
+                                        {'• '}{item}
+                                    </Text>
+                                ))}
+                            </View>
                         </View>
                     );
                 })}
@@ -252,6 +259,7 @@ async function removeDefense(index: number) {
                         justifyContent: 'center',
                         padding: 20,
                         backgroundColor: 'rgba(0,0,0,0.65)',
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -263,6 +271,8 @@ async function removeDefense(index: number) {
                             backgroundColor: colors.background,
                             borderWidth: 1,
                             borderColor: colors.border,
+                            maxWidth: 600,
+                            minWidth: 300,
                         }}
                     >
                         <Text style={styles.title}>Manage Defenses</Text>
@@ -327,7 +337,7 @@ async function removeDefense(index: number) {
                             ) : (
                                 character[selectedAttribute].map((item, index) => (
                                     <View
-                                        key={`${item} -${index} `}
+                                        key={`${item}-${index}`}
                                         style={{
                                             flexDirection: 'row',
                                             alignItems: 'center',
@@ -351,7 +361,7 @@ async function removeDefense(index: number) {
 
                                         <Pressable
                                             onPress={() =>
-                                                removeDefense(index)
+                                                void removeDefense(index)
                                             }
                                             disabled={saving}
                                             style={[
@@ -360,8 +370,7 @@ async function removeDefense(index: number) {
                                                     backgroundColor:
                                                         colors.background,
                                                     borderWidth: 1,
-                                                    borderColor:
-                                                        colors.border,
+                                                    borderColor: colors.border,
                                                 },
                                             ]}
                                         >
@@ -384,31 +393,20 @@ async function removeDefense(index: number) {
                                 Add Defense
                             </Text>
 
-                            <View
+                            <TextInput
+                                value={newItem}
+                                onChangeText={setNewItem}
+                                numberOfLines={1}
+                                placeholder="Enter damage type or condition..."
+                                placeholderTextColor={colors.textSecondary}
                                 style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 8,
+                                    ...styles.input,
+                                    width: '100%',
                                 }}
-                            >
-                                <TextInput
-                                    value={newItem}
-                                    onChangeText={setNewItem}
-                                    numberOfLines={1}
-                                    placeholder="Enter damage type or condition..."
-                                    placeholderTextColor={
-                                        colors.textSecondary
-                                    }
-                                    style={{
-                                        ...styles.input,
-                                        flex: 1,
-                                    }}
-                                    editable={!saving}
-                                    returnKeyType="done"
-                                    onSubmitEditing={addDefense}
-                                />
-
-                            </View>
+                                editable={!saving}
+                                returnKeyType="done"
+                                onSubmitEditing={() => void addDefense()}
+                            />
                         </View>
 
                         <View
@@ -426,6 +424,8 @@ async function removeDefense(index: number) {
                                     {
                                         backgroundColor:
                                             colors.backgroundElement,
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
                                     },
                                 ]}
                             >
@@ -438,8 +438,9 @@ async function removeDefense(index: number) {
                                     Cancel
                                 </Text>
                             </Pressable>
+
                             <Pressable
-                                onPress={addDefense}
+                                onPress={() => void addDefense()}
                                 disabled={saving || !newItem.trim()}
                                 style={[
                                     styles.button,
@@ -449,7 +450,7 @@ async function removeDefense(index: number) {
                                 ]}
                             >
                                 <Text style={styles.buttonText}>
-                                    + Add
+                                    {saving ? 'Saving...' : '+ Add'}
                                 </Text>
                             </Pressable>
                         </View>

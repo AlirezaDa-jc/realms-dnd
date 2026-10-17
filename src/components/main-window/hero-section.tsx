@@ -1,3 +1,4 @@
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import { Character } from '@/models/character';
 import { RecoveryType } from '@/models/resource';
@@ -5,7 +6,6 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
-    Alert,
     Image,
     Modal,
     Pressable,
@@ -47,6 +47,7 @@ export default function HeroSection({
 }: HeroSectionProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo, showConfirm } = useDialog();
 
     const [expandedTraits, setExpandedTraits] = useState(true);
     const [traitModalVisible, setTraitModalVisible] = useState(false);
@@ -111,7 +112,7 @@ export default function HeroSection({
                 await ImagePicker.requestMediaLibraryPermissionsAsync();
 
             if (!permission.granted) {
-                Alert.alert(
+                showInfo(
                     'Permission required',
                     'Allow access to your photo library to choose a portrait.',
                 );
@@ -131,7 +132,7 @@ export default function HeroSection({
 
             await onUploadPortrait(result.assets[0].uri);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Upload failed',
                 error instanceof Error
                     ? error.message
@@ -144,7 +145,7 @@ export default function HeroSection({
         const trait = newTrait.trim();
 
         if (!trait) {
-            Alert.alert('Invalid Trait', 'Trait name cannot be empty.');
+            showInfo('Invalid Trait', 'Trait name cannot be empty.');
             return;
         }
 
@@ -154,7 +155,7 @@ export default function HeroSection({
         );
 
         if (duplicate) {
-            Alert.alert('Duplicate Trait', 'This trait already exists.');
+            showInfo('Duplicate Trait', 'This trait already exists.');
             return;
         }
 
@@ -167,7 +168,7 @@ export default function HeroSection({
         const condition = newCondition.trim();
 
         if (!condition) {
-            Alert.alert(
+            showInfo(
                 'Invalid Condition',
                 'Condition name cannot be empty.',
             );
@@ -176,12 +177,11 @@ export default function HeroSection({
 
         const duplicate = (character.conditions ?? []).some(
             (item) =>
-                item.toLocaleLowerCase() ===
-                condition.toLocaleLowerCase(),
+                item.toLocaleLowerCase() === condition.toLocaleLowerCase(),
         );
 
         if (duplicate) {
-            Alert.alert(
+            showInfo(
                 'Duplicate Condition',
                 'This condition already exists.',
             );
@@ -197,7 +197,7 @@ export default function HeroSection({
         const feat = newFeat.trim();
 
         if (!feat) {
-            Alert.alert('Invalid Feat', 'Feat name cannot be empty.');
+            showInfo('Invalid Feat', 'Feat name cannot be empty.');
             return;
         }
 
@@ -207,13 +207,26 @@ export default function HeroSection({
         );
 
         if (duplicate) {
-            Alert.alert('Duplicate Feat', 'This feat already exists.');
+            showInfo('Duplicate Feat', 'This feat already exists.');
             return;
         }
 
         onAddFeat(feat);
         setFeatModalVisible(false);
         setNewFeat('');
+    }
+
+    function confirmLongRest() {
+        showConfirm({
+            title: 'Take a Long Rest?',
+            message:
+                'This will restore your character according to the current rest rules. Your existing character log will also be cleared.',
+            cancelLabel: 'Cancel',
+            confirmLabel: 'Long Rest',
+            onConfirm: async () => {
+                await onTakeRest('long_rest');
+            },
+        });
     }
 
     const classLevels = character.classLevels ?? [];
@@ -470,7 +483,8 @@ export default function HeroSection({
                                         padding: 14,
                                         gap: 12,
                                         borderRadius: 12,
-                                        backgroundColor: colors.backgroundElement,
+                                        backgroundColor:
+                                            colors.backgroundElement,
                                         borderWidth: 1,
                                         borderColor: colors.border,
                                     }}
@@ -745,7 +759,6 @@ export default function HeroSection({
                     )}
                 </View>
 
-
                 {/* Feats */}
                 <View style={{ gap: 12 }}>
                     <View
@@ -827,7 +840,8 @@ export default function HeroSection({
                                             gap: 10,
                                             padding: 10,
                                             borderRadius: 9,
-                                            backgroundColor: 'rgba(128,128,128,0.06)',
+                                            backgroundColor:
+                                                'rgba(128,128,128,0.06)',
                                             borderWidth: 1,
                                             borderColor: colors.border,
                                         }}
@@ -862,7 +876,6 @@ export default function HeroSection({
                         </View>
                     )}
                 </View>
-
 
                 {/* Traits */}
                 <View style={{ gap: 12 }}>
@@ -1085,24 +1098,7 @@ export default function HeroSection({
                         </Pressable>
 
                         <Pressable
-                            onPress={() =>
-                                Alert.alert(
-                                    'Take a Long Rest?',
-                                    'This will restore your character according to the current rest rules. Your existing character log will also be cleared.',
-                                    [
-                                        {
-                                            text: 'Cancel',
-                                            style: 'cancel',
-                                        },
-                                        {
-                                            text: 'Long Rest',
-                                            onPress: () => {
-                                                void onTakeRest('long_rest');
-                                            },
-                                        },
-                                    ],
-                                )
-                            }
+                            onPress={confirmLongRest}
                             style={{
                                 flex: 1,
                                 minWidth: 0,
@@ -1460,7 +1456,9 @@ export default function HeroSection({
                                     borderColor: colors.border,
                                 }}
                             >
-                                <Text style={{ color: colors.text }}>Cancel</Text>
+                                <Text style={{ color: colors.text }}>
+                                    Cancel
+                                </Text>
                             </Pressable>
 
                             <Pressable
@@ -1485,7 +1483,6 @@ export default function HeroSection({
                     </View>
                 </View>
             </Modal>
-
         </BlurView>
     );
 }

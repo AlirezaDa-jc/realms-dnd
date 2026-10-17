@@ -1,4 +1,4 @@
-
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { ClassAction } from '@/models/class-action';
@@ -6,13 +6,13 @@ import type { RecoveryType } from '@/models/resource';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
+    ScrollView,
     Text,
     TextInput,
     useColorScheme,
-    View
+    View,
 } from 'react-native';
 
 type ClassActionsProps = {
@@ -58,6 +58,7 @@ export default function ClassActions({
 }: ClassActionsProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo, showConfirm } = useDialog();
 
     const [modalVisible, setModalVisible] = useState(false);
     const [form, setForm] = useState<ActionForm>({ ...EMPTY_FORM });
@@ -99,7 +100,6 @@ export default function ClassActions({
             paddingHorizontal: 12,
             paddingVertical: 8,
             borderRadius: 8,
-            color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
             backgroundColor: colors.accent,
             alignItems: 'center' as const,
             justifyContent: 'center' as const,
@@ -123,10 +123,12 @@ export default function ClassActions({
     }
 
     async function saveAction() {
+        if (saving) return;
+
         const name = form.name.trim();
 
         if (!name) {
-            Alert.alert('Missing name', 'Enter an action name.');
+            showInfo('Missing name', 'Enter an action name.');
             return;
         }
 
@@ -140,7 +142,7 @@ export default function ClassActions({
                 resourceCost < 1 ||
                 resourceCost > 999)
         ) {
-            Alert.alert(
+            showInfo(
                 'Invalid resource cost',
                 'Resource cost must be between 1 and 999.',
             );
@@ -153,7 +155,7 @@ export default function ClassActions({
                 maximumUses < 1 ||
                 maximumUses > 999
             ) {
-                Alert.alert(
+                showInfo(
                     'Invalid maximum uses',
                     'Maximum uses must be between 1 and 999.',
                 );
@@ -165,7 +167,7 @@ export default function ClassActions({
                 currentUses < 0 ||
                 currentUses > maximumUses
             ) {
-                Alert.alert(
+                showInfo(
                     'Invalid current uses',
                     'Current uses must be between 0 and maximum uses.',
                 );
@@ -187,9 +189,11 @@ export default function ClassActions({
                 recovery: form.limitedUses ? form.recovery : null,
             });
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Invalid action',
-                error instanceof Error ? error.message : 'Could not create action.',
+                error instanceof Error
+                    ? error.message
+                    : 'Could not create action.',
             );
             return;
         }
@@ -209,16 +213,20 @@ export default function ClassActions({
             setModalVisible(false);
             setForm({ ...EMPTY_FORM });
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save failed',
-                error instanceof Error ? error.message : 'Could not save the action.',
+                error instanceof Error
+                    ? error.message
+                    : 'Could not save the action.',
             );
         } finally {
             setSaving(false);
         }
     }
 
-    function getActionUnavailableReason(action: ClassAction): string | null {
+    function getActionUnavailableReason(
+        action: ClassAction,
+    ): string | null {
         if (
             action.maximumUses !== null &&
             action.currentUses !== null &&
@@ -242,7 +250,10 @@ export default function ClassActions({
             }
         }
 
-        if (action.resourceName !== null && action.resourceCost !== null) {
+        if (
+            action.resourceName !== null &&
+            action.resourceCost !== null
+        ) {
             try {
                 const resource = character.getResource(action.resourceName);
 
@@ -258,6 +269,8 @@ export default function ClassActions({
     }
 
     async function useAction(index: number) {
+        if (saving) return;
+
         const updatedCharacter = Object.assign(
             Object.create(Object.getPrototypeOf(character)),
             character,
@@ -280,54 +293,68 @@ export default function ClassActions({
 
         const action = updatedCharacter.classActions[index];
 
+        if (!action) return;
+
+        setSaving(true);
+
         try {
             action.use(updatedCharacter);
-            updatedCharacter.logs.push(`Used class action: ${action.name}`);
+            updatedCharacter.logs.push(
+                `Used class action: ${action.name}`,
+            );
             await onUpdate(updatedCharacter);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Cannot use action',
-                error instanceof Error ? error.message : 'Could not use this action.',
+                error instanceof Error
+                    ? error.message
+                    : 'Could not use this action.',
             );
+        } finally {
+            setSaving(false);
         }
     }
 
     function removeAction(index: number) {
+        if (saving) return;
+
         const action = character.classActions[index];
 
-        Alert.alert(
-            'Remove action',
-            `Remove "${action.name}" from this character?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Remove',
-                    style: 'destructive',
-                    onPress: async () => {
-                        const updatedCharacter = Object.assign(
-                            Object.create(Object.getPrototypeOf(character)),
-                            character,
-                            {
-                                classActions: character.classActions.filter(
-                                    (_, itemIndex) => itemIndex !== index,
-                                ),
-                            },
-                        ) as Character;
+        if (!action) return;
 
-                        try {
-                            await onUpdate(updatedCharacter);
-                        } catch (error) {
-                            Alert.alert(
-                                'Remove failed',
-                                error instanceof Error
-                                    ? error.message
-                                    : 'Could not remove the action.',
-                            );
-                        }
+        showConfirm({
+            title: 'Remove action',
+            message: `Remove "${action.name}" from this character?`,
+            confirmLabel: 'Remove',
+            cancelLabel: 'Cancel',
+            destructive: true,
+            onConfirm: async () => {
+                const updatedCharacter = Object.assign(
+                    Object.create(Object.getPrototypeOf(character)),
+                    character,
+                    {
+                        classActions: character.classActions.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                        ),
                     },
-                },
-            ],
-        );
+                ) as Character;
+
+                setSaving(true);
+
+                try {
+                    await onUpdate(updatedCharacter);
+                } catch (error) {
+                    showInfo(
+                        'Remove failed',
+                        error instanceof Error
+                            ? error.message
+                            : 'Could not remove the action.',
+                    );
+                } finally {
+                    setSaving(false);
+                }
+            },
+        });
     }
 
     function renderChoice(
@@ -338,24 +365,34 @@ export default function ClassActions({
         return (
             <Pressable
                 key={label}
+                disabled={saving}
                 onPress={onPress}
                 style={{
                     backgroundColor: selected
                         ? colors.accent
                         : 'transparent',
-                    borderColor: selected ? colors.border : colors.accent,
+                    borderColor: selected
+                        ? colors.border
+                        : colors.accent,
                     borderWidth: 1,
                     borderRadius: 8,
                     paddingHorizontal: 10,
                     paddingVertical: 8,
+                    opacity: saving ? 0.5 : 1,
                 }}
             >
                 <Text
                     style={{
                         ...styles.buttonText,
-                        color: selected ? colors.background : colors.accent
+                        color: selected
+                            ? scheme === 'dark'
+                                ? '#11100F'
+                                : '#FFFFFF'
+                            : colors.accent,
                     }}
-                >{label}</Text>
+                >
+                    {label}
+                </Text>
             </Pressable>
         );
     }
@@ -371,7 +408,7 @@ export default function ClassActions({
                 borderWidth: 1,
                 borderColor: colors.border,
                 gap: 14,
-                marginTop: 16
+                marginTop: 16,
             }}
         >
             <View style={{ gap: 12 }}>
@@ -385,8 +422,25 @@ export default function ClassActions({
                 >
                     <Text style={styles.title}>CLASS ACTIONS</Text>
 
-                    <Pressable onPress={openAddModal} style={styles.button}>
-                        <Text style={styles.buttonText}>+ Add Action</Text>
+                    <Pressable
+                        onPress={openAddModal}
+                        disabled={saving}
+                        style={[
+                            styles.button,
+                            { opacity: saving ? 0.5 : 1 },
+                        ]}
+                    >
+                        <Text
+                            style={{
+                                ...styles.buttonText,
+                                color:
+                                    scheme === 'dark'
+                                        ? '#11100F'
+                                        : '#FFFFFF',
+                            }}
+                        >
+                            + Add Action
+                        </Text>
                     </Pressable>
                 </View>
 
@@ -405,7 +459,9 @@ export default function ClassActions({
                 ) : (
                     character.classActions.map((action, index) => {
                         const details: string[] = [];
-                        const unavailableReason = getActionUnavailableReason(action);
+                        const unavailableReason =
+                            getActionUnavailableReason(action);
+
                         if (
                             action.resourceName !== null &&
                             action.resourceCost !== null
@@ -421,7 +477,8 @@ export default function ClassActions({
                         ) {
                             const recoveryLabel =
                                 RECOVERY_OPTIONS.find(
-                                    (option) => option.value === action.recovery,
+                                    (option) =>
+                                        option.value === action.recovery,
                                 )?.label ?? action.recovery;
 
                             details.push(
@@ -434,7 +491,10 @@ export default function ClassActions({
                         }
 
                         return (
-                            <View key={`${action.name}-${index}`} style={styles.card}>
+                            <View
+                                key={`${action.name}-${index}`}
+                                style={styles.card}
+                            >
                                 <Text
                                     style={{
                                         color: colors.text,
@@ -450,8 +510,10 @@ export default function ClassActions({
                                 </Text>
 
                                 <Text style={styles.text}>
-                                    {action.description || 'No description provided.'}
+                                    {action.description ||
+                                        'No description provided.'}
                                 </Text>
+
                                 {unavailableReason !== null && (
                                     <Text
                                         style={{
@@ -472,41 +534,61 @@ export default function ClassActions({
                                     }}
                                 >
                                     <Pressable
-                                        disabled={unavailableReason !== null}
-                                        onPress={() => void useAction(index)}
+                                        disabled={
+                                            saving ||
+                                            unavailableReason !== null
+                                        }
+                                        onPress={() =>
+                                            void useAction(index)
+                                        }
                                         style={[
                                             styles.button,
                                             {
-                                                opacity: unavailableReason !== null ? 0.4 : 1,
+                                                opacity:
+                                                    saving ||
+                                                        unavailableReason !== null
+                                                        ? 0.4
+                                                        : 1,
                                             },
                                         ]}
                                     >
                                         <Text
-                                            style={[
-                                                styles.buttonText,
-                                                {
-                                                    color:
-                                                        scheme === 'dark' ? '#11100F' : '#FFFFFF',
-                                                },
-                                            ]}
+                                            style={{
+                                                ...styles.buttonText,
+                                                color:
+                                                    scheme === 'dark'
+                                                        ? '#11100F'
+                                                        : '#FFFFFF',
+                                            }}
                                         >
-                                            {unavailableReason !== null ? 'Unavailable' : 'Use'}
+                                            {unavailableReason !== null
+                                                ? 'Unavailable'
+                                                : 'Use'}
                                         </Text>
                                     </Pressable>
 
                                     <Pressable
-                                        onPress={() => removeAction(index)}
+                                        disabled={saving}
+                                        onPress={() =>
+                                            removeAction(index)
+                                        }
                                         style={{
                                             ...styles.button,
-                                            backgroundColor: colors.background,
+                                            backgroundColor:
+                                                colors.background,
                                             borderWidth: 1,
                                             borderColor: colors.border,
+                                            opacity: saving ? 0.5 : 1,
                                         }}
                                     >
-                                        <Text style={{
-                                            ...styles.buttonText,
-                                            color: colors.text
-                                        }}>Remove</Text>
+                                        <Text
+                                            style={{
+                                                ...styles.buttonText,
+                                                color: colors.text,
+                                            }}
+                                        >
+                                            Remove
+                                        </Text>
                                     </Pressable>
                                 </View>
                             </View>
@@ -518,7 +600,9 @@ export default function ClassActions({
                     visible={modalVisible}
                     transparent
                     animationType="fade"
-                    onRequestClose={() => setModalVisible(false)}
+                    onRequestClose={() => {
+                        if (!saving) setModalVisible(false);
+                    }}
                 >
                     <View
                         style={{
@@ -526,248 +610,325 @@ export default function ClassActions({
                             justifyContent: 'center',
                             padding: 20,
                             backgroundColor: 'rgba(0,0,0,0.65)',
+                            alignItems: 'center',
                         }}
                     >
-
-                        <View
-                            style={{
-                                padding: 20,
-                                borderRadius: 16,
-                                gap: 16,
-                                backgroundColor: colors.background,
-                                borderWidth: 1,
-                                borderColor: colors.border,
+                        <ScrollView
+                            keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={{
+                                flexGrow: 1,
+                                justifyContent: 'center',
+                                paddingVertical: 20,
+                                maxWidth: 600,
+                                minWidth: 300,
                             }}
                         >
-                            <Text style={styles.title}>Add Class Action</Text>
+                            <View
+                                style={{
+                                    padding: 20,
+                                    borderRadius: 16,
+                                    gap: 16,
+                                    backgroundColor: colors.background,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <Text style={styles.title}>
+                                    Add Class Action
+                                </Text>
 
-                            <View style={{ gap: 6 }}>
-                                <Text style={styles.text}>Name *</Text>
-                                <TextInput
-                                    value={form.name}
-                                    onChangeText={(value) =>
-                                        updateForm('name', value)
-                                    }
-                                    placeholder="Action name"
-                                    placeholderTextColor={colors.textSecondary}
-                                    style={styles.input}
-                                    maxLength={100}
-                                />
-                            </View>
+                                <View style={{ gap: 6 }}>
+                                    <Text style={styles.text}>Name *</Text>
+                                    <TextInput
+                                        value={form.name}
+                                        onChangeText={(value) =>
+                                            updateForm('name', value)
+                                        }
+                                        placeholder="Action name"
+                                        placeholderTextColor={
+                                            colors.textSecondary
+                                        }
+                                        style={styles.input}
+                                        maxLength={100}
+                                        editable={!saving}
+                                    />
+                                </View>
 
-                            <View style={{ gap: 6 }}>
-                                <Text style={styles.text}>Description</Text>
-                                <TextInput
-                                    value={form.description}
-                                    onChangeText={(value) =>
-                                        updateForm('description', value)
-                                    }
-                                    placeholder="Describe the action"
-                                    placeholderTextColor={colors.textSecondary}
-                                    style={[
-                                        styles.input,
-                                        {
-                                            minHeight: 90,
-                                            textAlignVertical: 'top',
-                                        },
-                                    ]}
-                                    multiline
-                                />
-                            </View>
+                                <View style={{ gap: 6 }}>
+                                    <Text style={styles.text}>
+                                        Description
+                                    </Text>
+                                    <TextInput
+                                        value={form.description}
+                                        onChangeText={(value) =>
+                                            updateForm(
+                                                'description',
+                                                value,
+                                            )
+                                        }
+                                        placeholder="Describe the action"
+                                        placeholderTextColor={
+                                            colors.textSecondary
+                                        }
+                                        style={[
+                                            styles.input,
+                                            {
+                                                minHeight: 90,
+                                                textAlignVertical: 'top',
+                                            },
+                                        ]}
+                                        multiline
+                                        editable={!saving}
+                                    />
+                                </View>
 
-                            <View style={{ gap: 8, }}>
-                                <Text style={styles.text}>Resource cost</Text>
+                                <View style={{ gap: 8 }}>
+                                    <Text style={styles.text}>
+                                        Resource cost
+                                    </Text>
+
+                                    <View
+                                        style={{
+                                            flexDirection: 'row',
+                                            flexWrap: 'wrap',
+                                            gap: 8,
+                                        }}
+                                    >
+                                        {renderChoice(
+                                            'No resource',
+                                            form.resourceName === null,
+                                            () =>
+                                                updateForm(
+                                                    'resourceName',
+                                                    null,
+                                                ),
+                                        )}
+
+                                        {character.resources.map(
+                                            (resource) =>
+                                                renderChoice(
+                                                    resource.name,
+                                                    form.resourceName ===
+                                                    resource.name,
+                                                    () =>
+                                                        updateForm(
+                                                            'resourceName',
+                                                            resource.name,
+                                                        ),
+                                                ),
+                                        )}
+                                    </View>
+
+                                    {form.resourceName !== null && (
+                                        <TextInput
+                                            value={form.resourceCost}
+                                            onChangeText={(value) =>
+                                                updateForm(
+                                                    'resourceCost',
+                                                    value.replace(
+                                                        /[^0-9]/g,
+                                                        '',
+                                                    ),
+                                                )
+                                            }
+                                            keyboardType="number-pad"
+                                            placeholder="Resource cost"
+                                            placeholderTextColor={
+                                                colors.textSecondary
+                                            }
+                                            style={styles.input}
+                                            editable={!saving}
+                                        />
+                                    )}
+                                </View>
+
+                                <View style={{ gap: 8 }}>
+                                    <Pressable
+                                        disabled={saving}
+                                        onPress={() =>
+                                            setForm((previous) => ({
+                                                ...previous,
+                                                limitedUses:
+                                                    !previous.limitedUses,
+                                            }))
+                                        }
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 10,
+                                        }}
+                                    >
+                                        <View
+                                            style={{
+                                                width: 22,
+                                                height: 22,
+                                                borderRadius: 5,
+                                                borderWidth: 1,
+                                                borderColor: colors.border,
+                                                backgroundColor:
+                                                    form.limitedUses
+                                                        ? colors.accent
+                                                        : colors.background,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            {form.limitedUses && (
+                                                <Text
+                                                    style={{
+                                                        color:
+                                                            scheme === 'dark'
+                                                                ? '#11100F'
+                                                                : '#FFFFFF',
+                                                        fontWeight: '700',
+                                                    }}
+                                                >
+                                                    ✓
+                                                </Text>
+                                            )}
+                                        </View>
+
+                                        <Text style={styles.text}>
+                                            Limited uses
+                                        </Text>
+                                    </Pressable>
+
+                                    {form.limitedUses && (
+                                        <>
+                                            <Text style={styles.text}>
+                                                Maximum uses
+                                            </Text>
+                                            <TextInput
+                                                value={form.maximumUses}
+                                                onChangeText={(value) =>
+                                                    updateForm(
+                                                        'maximumUses',
+                                                        value.replace(
+                                                            /[^0-9]/g,
+                                                            '',
+                                                        ),
+                                                    )
+                                                }
+                                                keyboardType="number-pad"
+                                                placeholder="Maximum uses"
+                                                placeholderTextColor={
+                                                    colors.textSecondary
+                                                }
+                                                style={styles.input}
+                                                editable={!saving}
+                                            />
+
+                                            <Text style={styles.text}>
+                                                Current uses
+                                            </Text>
+                                            <TextInput
+                                                value={form.currentUses}
+                                                onChangeText={(value) =>
+                                                    updateForm(
+                                                        'currentUses',
+                                                        value.replace(
+                                                            /[^0-9]/g,
+                                                            '',
+                                                        ),
+                                                    )
+                                                }
+                                                keyboardType="number-pad"
+                                                placeholder="Current uses"
+                                                placeholderTextColor={
+                                                    colors.textSecondary
+                                                }
+                                                style={styles.input}
+                                                editable={!saving}
+                                            />
+
+                                            <Text style={styles.text}>
+                                                Recovery
+                                            </Text>
+
+                                            <View
+                                                style={{
+                                                    flexDirection: 'row',
+                                                    flexWrap: 'wrap',
+                                                    gap: 8,
+                                                }}
+                                            >
+                                                {RECOVERY_OPTIONS.map(
+                                                    (option) =>
+                                                        renderChoice(
+                                                            option.label,
+                                                            form.recovery ===
+                                                            option.value,
+                                                            () =>
+                                                                updateForm(
+                                                                    'recovery',
+                                                                    option.value,
+                                                                ),
+                                                        ),
+                                                )}
+                                            </View>
+                                        </>
+                                    )}
+                                </View>
 
                                 <View
                                     style={{
                                         flexDirection: 'row',
-                                        flexWrap: 'wrap',
+                                        justifyContent: 'flex-end',
                                         gap: 8,
+                                        marginTop: 4,
                                     }}
                                 >
-                                    {renderChoice(
-                                        'No resource',
-                                        form.resourceName === null,
-                                        () => updateForm('resourceName', null),
-                                    )}
-
-                                    {character.resources.map((resource) =>
-                                        renderChoice(
-                                            resource.name,
-                                            form.resourceName === resource.name,
-                                            () => {
-                                                updateForm(
-                                                    'resourceName',
-                                                    resource.name,
-                                                );
-                                            },
-                                        ),
-                                    )}
-                                </View>
-
-                                {form.resourceName !== null && (
-                                    <TextInput
-                                        value={form.resourceCost}
-                                        onChangeText={(value) =>
-                                            updateForm('resourceCost', value)
+                                    <Pressable
+                                        onPress={() =>
+                                            setModalVisible(false)
                                         }
-                                        keyboardType="number-pad"
-                                        placeholder="Resource cost"
-                                        placeholderTextColor={colors.textSecondary}
-                                        style={styles.input}
-                                    />
-                                )}
-                            </View>
-
-                            <View style={{ gap: 8 }}>
-                                <Pressable
-                                    onPress={() =>
-                                        setForm((previous) => ({
-                                            ...previous,
-                                            limitedUses: !previous.limitedUses,
-                                        }))
-                                    }
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 10,
-                                    }}
-                                >
-                                    <View
+                                        disabled={saving}
                                         style={{
-                                            width: 22,
-                                            height: 22,
-                                            borderRadius: 5,
+                                            ...styles.button,
+                                            backgroundColor:
+                                                colors.background,
                                             borderWidth: 1,
                                             borderColor: colors.border,
-                                            backgroundColor: form.limitedUses
-                                                ? colors.accent
-                                                : colors.background,
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
+                                            opacity: saving ? 0.5 : 1,
                                         }}
                                     >
-                                        {form.limitedUses && (
-                                            <Text
-                                                style={{
-                                                    color: '#FFFFFF',
-                                                    fontWeight: '700',
-                                                }}
-                                            >
-                                                ✓
-                                            </Text>
-                                        )}
-                                    </View>
-
-                                    <Text style={styles.text}>Limited uses</Text>
-                                </Pressable>
-
-                                {form.limitedUses && (
-                                    <>
-                                        <Text style={styles.text}>
-                                            Maximum uses
-                                        </Text>
-                                        <TextInput
-                                            value={form.maximumUses}
-                                            onChangeText={(value) => {
-                                                setForm((previous) => {
-                                                    const maximum = Number(value);
-                                                    const current = Number(
-                                                        previous.currentUses,
-                                                    );
-
-                                                    return {
-                                                        ...previous,
-                                                        maximumUses: value,
-                                                        currentUses:
-                                                            Number.isFinite(maximum) &&
-                                                                maximum >= 1 &&
-                                                                current > maximum
-                                                                ? value
-                                                                : previous.currentUses,
-                                                    };
-                                                });
-                                            }}
-                                            keyboardType="number-pad"
-                                            style={styles.input}
-                                        />
-
-                                        <Text style={styles.text}>
-                                            Current uses
-                                        </Text>
-                                        <TextInput
-                                            value={form.currentUses}
-                                            onChangeText={(value) =>
-                                                updateForm('currentUses', value)
-                                            }
-                                            keyboardType="number-pad"
-                                            style={styles.input}
-                                        />
-
-                                        <Text style={styles.text}>Recovery</Text>
-                                        <View
+                                        <Text
                                             style={{
-                                                flexDirection: 'row',
-                                                flexWrap: 'wrap',
-                                                gap: 8,
+                                                ...styles.buttonText,
+                                                color: colors.text,
                                             }}
                                         >
-                                            {RECOVERY_OPTIONS.map((option) =>
-                                                renderChoice(
-                                                    option.label,
-                                                    form.recovery === option.value,
-                                                    () =>
-                                                        updateForm(
-                                                            'recovery',
-                                                            option.value,
-                                                        ),
-                                                ),
-                                            )}
-                                        </View>
-                                    </>
-                                )}
-                            </View>
+                                            Cancel
+                                        </Text>
+                                    </Pressable>
 
-                            <View
-                                style={{
-                                    flexDirection: 'row',
-                                    justifyContent: 'flex-end',
-                                    gap: 8,
-                                    marginTop: 4,
-                                }}
-                            >
-                                <Pressable
-                                    onPress={() => setModalVisible(false)}
-                                    disabled={saving}
-                                    style={{
-                                        ...styles.button,
-                                        backgroundColor: colors.background,
-                                        borderRadius: 5,
-                                        borderWidth: 1,
-                                        borderColor: colors.border,
-                                    }}
-                                >
-                                    <Text
-                                        style={{
-                                            ...styles.buttonText,
-                                            color: colors.text,
-                                        }}
+                                    <Pressable
+                                        onPress={() => void saveAction()}
+                                        disabled={saving}
+                                        style={[
+                                            styles.button,
+                                            {
+                                                opacity: saving ? 0.5 : 1,
+                                            },
+                                        ]}
                                     >
-                                        Cancel
-                                    </Text>
-                                </Pressable>
-
-                                <Pressable
-                                    onPress={saveAction}
-                                    disabled={saving}
-                                    style={styles.button}
-                                >
-                                    <Text style={styles.buttonText}>
-                                        {saving ? 'Saving...' : 'Save Action'}
-                                    </Text>
-                                </Pressable>
+                                        <Text
+                                            style={{
+                                                ...styles.buttonText,
+                                                color:
+                                                    scheme === 'dark'
+                                                        ? '#11100F'
+                                                        : '#FFFFFF',
+                                            }}
+                                        >
+                                            {saving
+                                                ? 'Saving...'
+                                                : 'Save Action'}
+                                        </Text>
+                                    </Pressable>
+                                </View>
                             </View>
-                        </View>
+                        </ScrollView>
                     </View>
                 </Modal>
             </View>

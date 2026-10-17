@@ -1,16 +1,15 @@
-
+import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import type { Character } from '@/models/character';
 import { SKILLS, type Skill } from '@/rules/dnd5e-2024';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import {
-    Alert,
     Modal,
     Pressable,
     Text,
     useColorScheme,
-    View
+    View,
 } from 'react-native';
 
 type SkillsProps = {
@@ -53,6 +52,7 @@ export default function Skills({
 }: SkillsProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+    const { showInfo } = useDialog();
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -98,12 +98,14 @@ export default function Skills({
 
     function openProficiencyModal(skill: Skill) {
         setSelectedSkill(skill);
-        setSelectedProficiency(character.skillProficiencies[skill]);
+        setSelectedProficiency(
+            character.skillProficiencies[skill] ?? 0,
+        );
         setModalVisible(true);
     }
 
     async function saveProficiency() {
-        if (selectedSkill === null) return;
+        if (selectedSkill === null || saving) return;
 
         const updatedCharacter = Object.assign(
             Object.create(Object.getPrototypeOf(character)),
@@ -126,7 +128,7 @@ export default function Skills({
             setModalVisible(false);
             setSelectedSkill(null);
         } catch (error) {
-            Alert.alert(
+            showInfo(
                 'Save failed',
                 error instanceof Error
                     ? error.message
@@ -164,7 +166,7 @@ export default function Skills({
                 {SKILLS.map((skill) => {
                     const displayName = SKILL_NAMES[skill];
                     const proficiency =
-                        character.skillProficiencies[skill];
+                        character.skillProficiencies[skill] ?? 0;
                     const bonus = character.skillBonus(skill);
 
                     return (
@@ -205,6 +207,7 @@ export default function Skills({
                                 >
                                     {getProficiencyLabel(proficiency)}
                                 </Text>
+
                                 <Text
                                     style={{
                                         ...styles.text,
@@ -216,6 +219,7 @@ export default function Skills({
                                     {bonus >= 0 ? `+${bonus}` : bonus}
                                 </Text>
                             </View>
+
                             <View
                                 style={{
                                     flexDirection: 'row',
@@ -224,15 +228,17 @@ export default function Skills({
                                     gap: 8,
                                 }}
                             >
-
                                 <Pressable
                                     onPress={() =>
                                         openProficiencyModal(skill)
                                     }
                                     style={styles.button}
                                 >
-                                    <Text style={styles.buttonText}>Edit Proficiency</Text>
+                                    <Text style={styles.buttonText}>
+                                        Edit Proficiency
+                                    </Text>
                                 </Pressable>
+
                                 <Pressable
                                     onPress={() =>
                                         onAddBonus?.(skill, displayName)
@@ -245,7 +251,9 @@ export default function Skills({
                                     ]}
                                     disabled={!onAddBonus}
                                 >
-                                    <Text style={styles.buttonText}>Bonus</Text>
+                                    <Text style={styles.buttonText}>
+                                        Bonus
+                                    </Text>
                                 </Pressable>
                             </View>
                         </View>
@@ -257,7 +265,12 @@ export default function Skills({
                 visible={modalVisible}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setModalVisible(false)}
+                onRequestClose={() => {
+                    if (!saving) {
+                        setModalVisible(false);
+                        setSelectedSkill(null);
+                    }
+                }}
             >
                 <View
                     style={{
@@ -265,6 +278,7 @@ export default function Skills({
                         justifyContent: 'center',
                         padding: 20,
                         backgroundColor: 'rgba(0,0,0,0.65)',
+                        alignItems: 'center',
                     }}
                 >
                     <View
@@ -275,6 +289,8 @@ export default function Skills({
                             backgroundColor: colors.background,
                             borderWidth: 1,
                             borderColor: colors.border,
+                            maxWidth: 600,
+                            minWidth: 300,
                         }}
                     >
                         <Text style={styles.title}>
@@ -294,6 +310,7 @@ export default function Skills({
                                 return (
                                     <Pressable
                                         key={option.value}
+                                        disabled={saving}
                                         onPress={() =>
                                             setSelectedProficiency(
                                                 option.value,
@@ -357,7 +374,11 @@ export default function Skills({
                             }}
                         >
                             <Pressable
-                                onPress={() => setModalVisible(false)}
+                                onPress={() => {
+                                    if (saving) return;
+                                    setModalVisible(false);
+                                    setSelectedSkill(null);
+                                }}
                                 disabled={saving}
                                 style={[
                                     styles.button,
@@ -370,7 +391,7 @@ export default function Skills({
                                 <Text
                                     style={{
                                         ...styles.buttonText,
-                                        color: '#FFF'
+                                        color: colors.text,
                                     }}
                                 >
                                     Cancel
@@ -378,9 +399,12 @@ export default function Skills({
                             </Pressable>
 
                             <Pressable
-                                onPress={saveProficiency}
+                                onPress={() => void saveProficiency()}
                                 disabled={saving}
-                                style={styles.button}
+                                style={[
+                                    styles.button,
+                                    saving && { opacity: 0.5 },
+                                ]}
                             >
                                 <Text style={styles.buttonText}>
                                     {saving ? 'Saving...' : 'Save'}
