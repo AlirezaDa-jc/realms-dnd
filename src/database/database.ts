@@ -12,7 +12,7 @@ export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 }
 
 async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
-  const db = await SQLite.openDatabaseAsync('realms-web.db');
+  const db = await SQLite.openDatabaseAsync('realms.db');
 
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
