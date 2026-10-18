@@ -19,6 +19,9 @@ import {
     CHARACTER_CLASSES,
     MAX_CHARACTER_LEVEL,
     SPECIES_GROUPS,
+    CHALLENGE_RATING_OPTIONS,
+    formatChallengeRating,
+    parseChallengeRating,
 } from '@/data/character-options';
 
 type AbilityKey = (typeof ABILITIES)[number]['key'];
@@ -39,6 +42,9 @@ export type CharacterFormValues = {
     maxHp: string;
     currentHp: string;
     speed: string;
+    category: string;
+    challengeRating: number | null;
+    encounterRole: string;
 };
 
 type CharacterFormProps = {
@@ -46,6 +52,7 @@ type CharacterFormProps = {
     initialValues?: Partial<CharacterFormValues>;
     onSubmit: (values: CharacterFormValues) => void;
     onCancel: () => void;
+    dmMode?: boolean;
 };
 
 const EMPTY_ABILITIES: AbilityScores = {
@@ -66,6 +73,9 @@ const EMPTY_VALUES: CharacterFormValues = {
     maxHp: '',
     currentHp: '',
     speed: '',
+    category: '',
+    challengeRating: null,
+    encounterRole: '',
 };
 
 export default function CharacterForm({
@@ -73,6 +83,7 @@ export default function CharacterForm({
     initialValues,
     onSubmit,
     onCancel,
+    dmMode = false
 }: CharacterFormProps) {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
@@ -107,6 +118,8 @@ export default function CharacterForm({
     );
     const [speciesModalVisible, setSpeciesModalVisible] = useState(false);
     const [classModalVisible, setClassModalVisible] = useState(false);
+    const [challengeRatingModalVisible, setChallengeRatingModalVisible] =
+        useState(false);
 
     function updateField<K extends keyof CharacterFormValues>(
         key: K,
@@ -313,6 +326,9 @@ export default function CharacterForm({
             name: values.name.trim(),
             species: values.species.trim(),
             background: values.background.trim(),
+            category: values.category.trim(),
+            challengeRating: values.challengeRating,
+            encounterRole: values.encounterRole.trim(),
             classLevels: values.classLevels.map((entry) => ({
                 characterClass: entry.characterClass.trim(),
                 subClass: entry.subClass ? entry.subClass.trim() : '',
@@ -774,6 +790,65 @@ export default function CharacterForm({
                         maxLength={3}
                     />
                 </Field>
+                {dmMode && (
+                    <>
+                        <SectionTitle title="DM Details" colors={colors} />
+
+                        <Field label="Category" colors={colors}>
+                            <TextInput
+                                value={values.category}
+                                onChangeText={(value) =>
+                                    updateField('category', value)
+                                }
+                                placeholder="e.g. Goblin, Undead, Dragon"
+                                placeholderTextColor={colors.textSecondary}
+                                style={inputStyle}
+                                maxLength={100}
+                            />
+                        </Field>
+
+                        <Field label="Challenge Rating (CR)" colors={colors}>
+                            <Pressable
+                                onPress={() => setChallengeRatingModalVisible(true)}
+                                style={[
+                                    styles.picker,
+                                    {
+                                        backgroundColor: colors.backgroundElement,
+                                        borderColor: colors.border,
+                                    },
+                                ]}
+                            >
+                                <Text
+                                    style={{
+                                        color:
+                                            values.challengeRating !== null
+                                                ? colors.text
+                                                : colors.textSecondary,
+                                    }}
+                                >
+                                    {formatChallengeRating(values.challengeRating)}
+                                </Text>
+
+                                <Text style={{ color: colors.textSecondary }}>
+                                    ⌄
+                                </Text>
+                            </Pressable>
+                        </Field>
+
+                        <Field label="Encounter Role" colors={colors}>
+                            <TextInput
+                                value={values.encounterRole}
+                                onChangeText={(value) =>
+                                    updateField('encounterRole', value)
+                                }
+                                placeholder="e.g. Boss, MiniBoss, Creep, Support"
+                                placeholderTextColor={colors.textSecondary}
+                                style={inputStyle}
+                                maxLength={100}
+                            />
+                        </Field>
+                    </>
+                )}
 
                 <Pressable
                     onPress={validateForm}
@@ -833,6 +908,18 @@ export default function CharacterForm({
                     setClassModalVisible(false);
                     setSelectedClassIndex(null);
                 },
+            )}
+            {renderPickerModal(
+                challengeRatingModalVisible,
+                'Choose Challenge Rating',
+                CHALLENGE_RATING_OPTIONS,
+                formatChallengeRating(values.challengeRating),
+                (value) =>
+                    updateField(
+                        'challengeRating',
+                        parseChallengeRating(value),
+                    ),
+                () => setChallengeRatingModalVisible(false),
             )}
         </KeyboardAvoidingView>
     );

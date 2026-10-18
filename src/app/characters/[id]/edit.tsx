@@ -16,7 +16,11 @@ import { loadCharacter, saveCharacter } from '@/database/character-repository';
 import type { Character } from '@/models/character';
 
 export default function EditCharacterScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, dmMode: dmModeParam } = useLocalSearchParams<{
+        id: string;
+        dmMode?: string;
+    }>();
+    const dmMode = dmModeParam === 'true';
     const router = useRouter();
     const { showDialog, showInfo, showConfirm } = useDialog();
     const scheme = useColorScheme();
@@ -59,6 +63,11 @@ export default function EditCharacterScreen() {
                     maxHp: String(loaded.maxHp ?? 0),
                     currentHp: String(loaded.currentHp ?? 0),
                     speed: String(loaded.speed ?? 30),
+
+                    // DM details
+                    category: loaded.category.trim(),
+                    challengeRating: loaded.challengeRating,
+                    encounterRole: loaded.encounterRole.trim(),
                 };
 
                 if (!cancelled) {
@@ -166,6 +175,7 @@ export default function EditCharacterScreen() {
                     initialValues={initialValues}
                     onSubmit={handleSubmit}
                     onCancel={() => router.back()}
+                    dmMode={dmMode}
                 />
             ) : null}
 

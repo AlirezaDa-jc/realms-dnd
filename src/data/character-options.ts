@@ -89,3 +89,40 @@ export const ABILITIES = [
 ] as const;
 
 export const MAX_CHARACTER_LEVEL = 20;
+
+export const CHALLENGE_RATING_OPTIONS = [
+  'Not set',
+  '0',
+  '1/8',
+  '1/4',
+  '1/2',
+  ...Array.from({ length: 30 }, (_, index) =>
+    String(index + 1),
+  ),
+] as const;
+
+export function parseChallengeRating(label: string): number | null {
+  switch (label) {
+    case 'Not set':
+      return null;
+    case '1/8':
+      return 0.125;
+    case '1/4':
+      return 0.25;
+    case '1/2':
+      return 0.5;
+    default:
+      return Number(label);
+  }
+}
+
+export function formatChallengeRating(
+  value: number | null,
+): string {
+  if (value === null) return 'Not set';
+  if (value === 0.125) return '1/8';
+  if (value === 0.25) return '1/4';
+  if (value === 0.5) return '1/2';
+
+  return String(value);
+}

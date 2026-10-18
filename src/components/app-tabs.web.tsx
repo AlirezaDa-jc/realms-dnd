@@ -1,11 +1,10 @@
-
 import {
-  Tabs,
   TabList,
-  TabTrigger,
   TabSlot,
-  type TabTriggerSlotProps,
+  TabTrigger,
+  Tabs,
   type TabListProps,
+  type TabTriggerSlotProps,
 } from 'expo-router/ui';
 import {
   Pressable,
@@ -14,22 +13,46 @@ import {
   useColorScheme,
 } from 'react-native';
 
-import { Colors, Spacing, MaxContentWidth } from '@/constants/theme';
+import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-export default function AppTabs() {
+export type AppMode = 'player' | 'dm';
+
+type AppTabsProps = {
+  mode: AppMode;
+};
+
+export default function AppTabs({ mode }: AppTabsProps) {
+  const isPlayer = mode === 'player';
+
   return (
     <Tabs>
       <TabSlot style={styles.content} />
 
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="index" href="/" asChild>
-            <TabButton>Home</TabButton>
-          </TabTrigger>
+          {isPlayer ? (
+            <TabTrigger name="index" href="/player" asChild>
+              <TabButton>Home</TabButton>
+            </TabTrigger>
+          ) : (
+            <TabTrigger name="index" href="/dm" asChild>
+              <TabButton>Party</TabButton>
+            </TabTrigger>
+          )}
 
-          <TabTrigger name="characters" href="/characters" asChild>
+          {!isPlayer && (
+            <TabTrigger name="combat" href="/dm/combat" asChild>
+              <TabButton>Combat</TabButton>
+            </TabTrigger>
+          )}
+
+          <TabTrigger
+            name="characters"
+            href={isPlayer ? '/player/characters' : '/dm/characters'}
+            asChild
+          >
             <TabButton>Characters</TabButton>
           </TabTrigger>
         </CustomTabList>

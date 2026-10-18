@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useDialog } from '@/components/dialog/realms-dialog';
 import CharacterForm, {
     type CharacterFormValues,
@@ -8,6 +8,10 @@ import { saveCharacter } from '@/database/character-repository';
 import { Character } from '@/models/character';
 
 export default function CreateCharacterScreen() {
+    const { dmMode: dmModeParam } = useLocalSearchParams<{
+        dmMode?: string;
+    }>();
+    const dmMode = dmModeParam === 'true';
     const router = useRouter();
     const { showDialog, showInfo, showConfirm } = useDialog();
     async function handleSubmit(values: CharacterFormValues) {
@@ -32,6 +36,11 @@ export default function CreateCharacterScreen() {
                 maxHp: Number(values.maxHp),
                 currentHp: Number(values.currentHp),
                 speed: Number(values.speed),
+
+                // DM details
+                category: values.category.trim(),
+                challengeRating: values.challengeRating,
+                encounterRole: values.encounterRole.trim(),
             });
 
             await saveCharacter(character);
@@ -65,6 +74,7 @@ export default function CreateCharacterScreen() {
                 mode="create"
                 onSubmit={handleSubmit}
                 onCancel={() => router.back()}
+                dmMode={dmMode}
             />
         </>
     );

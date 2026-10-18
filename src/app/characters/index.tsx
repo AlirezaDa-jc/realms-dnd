@@ -14,7 +14,7 @@ import { BlurView } from 'expo-blur';
 import * as Crypto from 'expo-crypto';
 import { File } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useState } from 'react';
 import {
@@ -45,7 +45,8 @@ export default function CharactersScreen() {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
+    const pathname = usePathname();
+    const isDMMode = pathname.startsWith('/dm');
     const refreshCharacters = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -82,24 +83,33 @@ export default function CharactersScreen() {
             void refreshCharacters();
         }, [refreshCharacters]),
     );
+    async function toggleParty(entry: CharacterEntry) {
+        if (busy) return;
 
-    async function getPortraitData(portraitPath: string | null | undefined) {
-        if (!portraitPath) return null;
+        setBusy(true);
 
-        const info = await FileSystem.getInfoAsync(portraitPath);
+        try {
+            const character = await loadCharacter(entry.id);
+            character.party = !character.party;
 
-        if (!info.exists || info.isDirectory) {
-            throw new Error('The character portrait file could not be found.');
+            await saveCharacter(character, entry.id);
+            await refreshCharacters();
+
+            showInfo(
+                character.party ? 'Added to Party' : 'Removed from Party',
+                `${character.name} was ${character.party ? 'added to' : 'removed from'
+                } the party.`,
+            );
+        } catch (err) {
+            showInfo(
+                'Party Update Failed',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not update party membership.',
+            );
+        } finally {
+            setBusy(false);
         }
-
-        const base64 = await FileSystem.readAsStringAsync(portraitPath, {
-            encoding: FileSystem.EncodingType.Base64,
-        });
-
-        const extension = portraitPath.match(/\.(png|webp|jpg|jpeg)$/i)?.[1]
-            ?.toLowerCase() ?? 'jpg';
-
-        return { base64, extension };
     }
 
     async function exportCharacter(character: Character) {
@@ -419,6 +429,7 @@ export default function CharactersScreen() {
     function getTotalLevel(character: Character) {
         return character.totalLevel;
     }
+
     function getSpecies(character: Character) {
         const value = character.species;
         if (!value) return 'Species not set';
@@ -428,7 +439,9 @@ export default function CharactersScreen() {
     function editCharacter(id: string) {
         router.push({
             pathname: '/characters/[id]/edit/',
-            params: { id },
+            params: {
+                id, dmMode: String(isDMMode),
+            },
         });
     }
 
@@ -490,7 +503,12 @@ export default function CharactersScreen() {
 
             <View style={styles.toolbar}>
                 <Pressable
-                    onPress={() => router.push('/characters/create')}
+                    onPress={() => router.push({
+                        pathname: '/characters/create',
+                        params: {
+                            dmMode: String(isDMMode),
+                        },
+                    })}
                     style={[
                         styles.primaryButton,
                         { backgroundColor: colors.accent },
@@ -519,209 +537,231 @@ export default function CharactersScreen() {
                 </Pressable>
             </View>
 
-            {loading ? (
-                <View style={styles.status}>
-                    <ActivityIndicator color={colors.accent} />
-                    <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-                        Loading characters...
-                    </Text>
-                </View>
-            ) : error ? (
-                <View
-                    style={[
-                        styles.emptyCard,
-                        {
-                            backgroundColor: colors.backgroundElement,
-                            borderColor: colors.border,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                        Could not load characters
-                    </Text>
-
-                    <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
-                        {error}
-                    </Text>
-
-                    <Pressable
-                        onPress={() => void refreshCharacters()}
-                        style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                    >
-                        <Text style={styles.primaryButtonText}>Retry</Text>
-                    </Pressable>
-                </View>
-            ) : characters.length === 0 ? (
-                <View
-                    style={[
-                        styles.emptyCard,
-                        {
-                            backgroundColor: colors.backgroundElement,
-                            borderColor: colors.border,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                        No characters yet
-                    </Text>
-
-                    <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
-                        Create your first hero or import a character JSON file to begin.
-                    </Text>
-
-                    <Pressable
-                        onPress={() => router.push('/characters/create')}
-                        style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-                    >
-                        <Text style={styles.primaryButtonText}>
-                            + Create Character
+            {
+                loading ? (
+                    <View style={styles.status}>
+                        <ActivityIndicator color={colors.accent} />
+                        <Text style={[styles.statusText, { color: colors.textSecondary }]}>
+                            Loading characters...
                         </Text>
-                    </Pressable>
-                </View>
-            ) : (
-                <View style={styles.list}>
-                    {characters.map((entry) => (
-                        <BlurView
-                            key={entry.id}
-                            intensity={isDark ? 24 : 50}
-                            tint={isDark ? 'dark' : 'light'}
-                            style={[
-                                styles.characterCard,
-                                { borderColor: colors.border },
-                            ]}
+                    </View>
+                ) : error ? (
+                    <View
+                        style={[
+                            styles.emptyCard,
+                            {
+                                backgroundColor: colors.backgroundElement,
+                                borderColor: colors.border,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                            Could not load characters
+                        </Text>
+
+                        <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+                            {error}
+                        </Text>
+
+                        <Pressable
+                            onPress={() => void refreshCharacters()}
+                            style={[styles.primaryButton, { backgroundColor: colors.accent }]}
                         >
-                            <Pressable
-                                onPress={() => void openCharacter(entry.id)}
+                            <Text style={styles.primaryButtonText}>Retry</Text>
+                        </Pressable>
+                    </View>
+                ) : characters.length === 0 ? (
+                    <View
+                        style={[
+                            styles.emptyCard,
+                            {
+                                backgroundColor: colors.backgroundElement,
+                                borderColor: colors.border,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                            No characters yet
+                        </Text>
+
+                        <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+                            Create your first hero or import a character JSON file to begin.
+                        </Text>
+
+                        <Pressable
+                            onPress={() => router.push('/characters/create')}
+                            style={[styles.primaryButton, { backgroundColor: colors.accent }]}
+                        >
+                            <Text style={styles.primaryButtonText}>
+                                + Create Character
+                            </Text>
+                        </Pressable>
+                    </View>
+                ) : (
+                    <View style={styles.list}>
+                        {characters.map((entry) => (
+                            <BlurView
+                                key={entry.id}
+                                intensity={isDark ? 24 : 50}
+                                tint={isDark ? 'dark' : 'light'}
                                 style={[
-                                    styles.characterMain,
-                                    {
-                                        backgroundColor: colors.backgroundElement,
-                                        borderColor: colors.border,
-                                    },
+                                    styles.characterCard,
+                                    { borderColor: colors.border },
                                 ]}
                             >
-                                <View style={styles.characterHeading}>
-                                    <View style={styles.characterNameContainer}>
-                                        <Text
-                                            numberOfLines={2}
-                                            style={[
-                                                styles.characterName,
-                                                { color: colors.text },
-                                            ]}
-                                        >
-                                            {entry.character.name || 'Unnamed Character'}
-                                        </Text>
+                                <Pressable
+                                    onPress={() => void openCharacter(entry.id)}
+                                    style={[
+                                        styles.characterMain,
+                                        {
+                                            backgroundColor: colors.backgroundElement,
+                                            borderColor: colors.border,
+                                        },
+                                    ]}
+                                >
+                                    <View style={styles.characterHeading}>
+                                        <View style={styles.characterNameContainer}>
+                                            <Text
+                                                numberOfLines={2}
+                                                style={[
+                                                    styles.characterName,
+                                                    { color: colors.text },
+                                                ]}
+                                            >
+                                                {entry.character.name || 'Unnamed Character'}
+                                            </Text>
 
-                                        <Text
+                                            <Text
+                                                style={[
+                                                    styles.characterMeta,
+                                                    { color: colors.textSecondary },
+                                                ]}
+                                            >
+                                                {getSpecies(entry.character)}
+                                            </Text>
+                                        </View>
+
+                                        <View
                                             style={[
-                                                styles.characterMeta,
-                                                { color: colors.textSecondary },
+                                                styles.levelBadge,
+                                                { backgroundColor: colors.backgroundSelected },
                                             ]}
                                         >
-                                            {getSpecies(entry.character)}
-                                        </Text>
+                                            <Text style={[styles.levelText, { color: colors.text }]}>
+                                                LV {getTotalLevel(entry.character)}
+                                            </Text>
+                                        </View>
                                     </View>
 
-                                    <View
+                                    <Text
                                         style={[
-                                            styles.levelBadge,
-                                            { backgroundColor: colors.backgroundSelected },
+                                            styles.classText,
+                                            { color: colors.textSecondary },
                                         ]}
                                     >
-                                        <Text style={[styles.levelText, { color: colors.text }]}>
-                                            LV {getTotalLevel(entry.character)}
+                                        {getCharacterClasses(entry.character)}
+                                    </Text>
+
+                                    <Text style={[styles.openHint, { color: colors.accent }]}>
+                                        Open character →
+                                    </Text>
+                                </Pressable>
+
+                                <View style={styles.cardActions}>
+                                    <Pressable
+                                        onPress={() => void exportCharacter(entry)}
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                backgroundColor: colors.backgroundElement,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={[styles.actionText, { color: colors.text }]}>
+                                            Export JSON
                                         </Text>
-                                    </View>
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={() => editCharacter(entry.id)}
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                backgroundColor: colors.backgroundElement,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={[styles.actionText, { color: colors.text }]}>
+                                            Edit
+                                        </Text>
+                                    </Pressable>
                                 </View>
+                                <View style={styles.cardActions}>
 
-                                <Text
-                                    style={[
-                                        styles.classText,
-                                        { color: colors.textSecondary },
-                                    ]}
-                                >
-                                    {getCharacterClasses(entry.character)}
-                                </Text>
+                                    <Pressable
+                                        onPress={() => void duplicateCharacterEntry(entry)}
+                                        disabled={busy}
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                backgroundColor: colors.backgroundElement,
+                                                borderColor: colors.border,
+                                            },
+                                            busy && styles.disabled,
+                                        ]}
+                                    >
+                                        <Text style={[styles.actionText, { color: colors.text }]}>
+                                            Duplicate
+                                        </Text>
+                                    </Pressable>
 
-                                <Text style={[styles.openHint, { color: colors.accent }]}>
-                                    Open character →
-                                </Text>
-                            </Pressable>
-
-                            <View style={styles.cardActions}>
-                                <Pressable
-                                    onPress={() => void exportCharacter(entry)}
-                                    style={[
-                                        styles.actionButton,
-                                        {
-                                            backgroundColor: colors.backgroundElement,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <Text style={[styles.actionText, { color: colors.text }]}>
-                                        Export JSON
-                                    </Text>
-                                </Pressable>
-                                <Pressable
-                                    onPress={() => editCharacter(entry.id)}
-                                    style={[
-                                        styles.actionButton,
-                                        {
-                                            backgroundColor: colors.backgroundElement,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <Text style={[styles.actionText, { color: colors.text }]}>
-                                        Edit
-                                    </Text>
-                                </Pressable>
-                            </View>
-                            <View style={styles.cardActions}>
-
-                                <Pressable
-                                    onPress={() => void duplicateCharacterEntry(entry)}
-                                    disabled={busy}
-                                    style={[
-                                        styles.actionButton,
-                                        {
-                                            backgroundColor: colors.backgroundElement,
-                                            borderColor: colors.border,
-                                        },
-                                        busy && styles.disabled,
-                                    ]}
-                                >
-                                    <Text style={[styles.actionText, { color: colors.text }]}>
-                                        Duplicate
-                                    </Text>
-                                </Pressable>
-
-                                <Pressable
-                                    onPress={() => confirmDelete(entry)}
-                                    style={[
-                                        styles.actionButton,
-                                        {
-                                            backgroundColor: colors.backgroundElement,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <Text style={[styles.actionText, { color: '#C45454' }]}>
-                                        Delete
-                                    </Text>
-                                </Pressable>
-                            </View>
-                        </BlurView>
-                    ))}
-                </View>
-            )}
+                                    <Pressable
+                                        onPress={() => confirmDelete(entry)}
+                                        style={[
+                                            styles.actionButton,
+                                            {
+                                                backgroundColor: colors.backgroundElement,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={[styles.actionText, { color: '#C45454' }]}>
+                                            Delete
+                                        </Text>
+                                    </Pressable>
+                                </View>
+                                {isDMMode && (
+                                    <View style={styles.cardActions}>
+                                        <Pressable
+                                            onPress={() => void toggleParty(entry)}
+                                            disabled={busy}
+                                            style={[
+                                                styles.actionButton,
+                                                {
+                                                    backgroundColor: colors.backgroundElement,
+                                                    borderColor: colors.border,
+                                                },
+                                                busy && styles.disabled,
+                                            ]}
+                                        >
+                                            <Text style={[styles.actionText, { color: colors.accent }]}>
+                                                {entry.character.party ? 'Remove from Party' : 'Add to Party'}
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                )}
+                            </BlurView>
+                        ))}
+                    </View>
+                )
+            }
 
             <Text style={[styles.footer, { color: colors.textSecondary }]}>
                 Export a character to share its JSON file. Importing creates a separate
                 entry if that character ID already exists.
             </Text>
-        </ScrollView>
+        </ScrollView >
     );
 }
 

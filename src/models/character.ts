@@ -45,15 +45,13 @@ type DefenseCategory =
 type RequiredCharacterFields =
     | 'name'
     | 'species'
-    | 'characterClass'
-    | 'subClass'
-    | 'level'
+    | 'classLevels'
     | 'background'
     | 'abilities'
     | 'maxHp'
     | 'currentHp'
     | 'speed';
-
+    
 /**
  * Fields collected by the character form are required.
  * All other fields may be omitted when creating a character.
@@ -110,6 +108,7 @@ export class Character {
     // Class features and resources
     classActions: ClassAction[];
     resources: CharacterResource[];
+
     // Hit points
     maxHp: number;
     currentHp: number;
@@ -134,6 +133,12 @@ export class Character {
     portraitPath: string;
     logs: string[];
     statBonuses: StatBonus[];
+
+    // DM Manager
+    category: string;
+    challengeRating: number | null;
+    encounterRole: string;
+    party: boolean;
 
     constructor(data: CharacterInit & { id: string });
     constructor(data: CharacterInit);
@@ -240,6 +245,10 @@ export class Character {
         this.portraitPath = data.portraitPath ?? '';
         this.logs = [...(data.logs ?? [])];
         this.statBonuses = [...(data.statBonuses ?? [])];
+        this.category = data.category ?? '';
+        this.challengeRating = data.challengeRating ?? null;
+        this.encounterRole = data.encounterRole ?? '';
+        this.party = data.party ?? false;
 
         this.validate();
     }
@@ -313,6 +322,34 @@ export class Character {
 
         if (this.speed < 0) {
             throw new Error('Speed cannot be negative.');
+        }
+
+        // DM Manager validation
+        if (
+            typeof this.category !== 'string' ||
+            typeof this.encounterRole !== 'string'
+        ) {
+            throw new Error('Category and encounter role must be strings.');
+        }
+
+        this.category = this.category.trim();
+        this.encounterRole = this.encounterRole.trim();
+
+        if (
+            this.challengeRating !== null &&
+            (
+                typeof this.challengeRating !== 'number' ||
+                !Number.isFinite(this.challengeRating) ||
+                this.challengeRating < 0
+            )
+        ) {
+            throw new Error(
+                'Challenge rating must be null or a finite non-negative number.',
+            );
+        }
+
+        if (typeof this.party !== 'boolean') {
+            throw new Error('Party must be a boolean.');
         }
     }
 

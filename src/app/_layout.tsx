@@ -1,16 +1,15 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import { DialogProvider } from '@/components/dialog/realms-dialog';
 import { getDatabase } from '@/database/database';
 
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [databaseReady, setDatabaseReady] = useState(false);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
@@ -50,9 +49,7 @@ export default function TabLayout() {
   }, [databaseReady, databaseError]);
 
   return (
-    <ThemeProvider
-      value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
-    >
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       {databaseError ? (
         <View
           style={{
@@ -70,7 +67,13 @@ export default function TabLayout() {
       ) : databaseReady ? (
         <DialogProvider>
           <AnimatedSplashOverlay />
-          <AppTabs />
+
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="player" />
+            <Stack.Screen name="dm" />
+            <Stack.Screen name="characters" />
+          </Stack>
         </DialogProvider>
       ) : (
         <View
