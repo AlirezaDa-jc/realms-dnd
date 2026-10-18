@@ -1,7 +1,11 @@
 {
   "name": "realms",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "description": "Realms — A D&D 5e (2024) character manager for managing characters, spells, equipment, and resources.",
+  "author": {
+    "name": "Alireza Dolatabadi"
+  },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
     "@expo/ui": "~57.0.25",
@@ -39,6 +43,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -47,7 +53,34 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "web:build": "expo export --platform web",
+    "desktop:dev": "electron electron/main.cjs",
+    "desktop:dir": "npm run web:build && electron-builder --dir",
+    "desktop:dist": "npm run web:build && electron-builder"
+  },
+  "build": {
+    "appId": "com.realms.realms",
+    "productName": "Realms",
+    "directories": {
+      "output": "release"
+    },
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/images/realms.ico",
+      "target": "nsis"
+    },
+    "mac": {
+      "icon": "assets/images/realms.icns",
+      "target": "dmg"
+    }
   },
   "private": true
 }
