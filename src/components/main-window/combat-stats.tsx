@@ -252,7 +252,6 @@ export default function CombatStats({
                 <View
                     style={{
                         flexDirection: 'row',
-                        flexWrap: 'wrap',
                         gap: 16,
                     }}
                 >
@@ -265,9 +264,8 @@ export default function CombatStats({
 
                         <View
                             style={{
-                                flexDirection: 'row',
+                                flexDirection: 'column',
                                 gap: 4,
-                                marginHorizontal: -14,
                             }}
                         >
                             {renderButton(
@@ -290,7 +288,9 @@ export default function CombatStats({
                             {character.temporaryHp}
                         </Text>
 
-                        <View>
+                        <View style={{
+                            marginTop: 'auto'
+                        }}>
                             {renderButton(
                                 'Set Temp HP',
                                 () => openAction('temporary'),

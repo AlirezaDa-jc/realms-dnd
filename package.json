@@ -10,6 +10,7 @@
     "@expo/metro-runtime": "~57.0.17",
     "@expo/ui": "~57.0.25",
     "@expo/vector-icons": "^15.0.2",
+    "better-sqlite3": "^13.0.3",
     "expo": "~57.0.30",
     "expo-blur": "~57.0.3",
     "expo-constants": "~57.0.21",

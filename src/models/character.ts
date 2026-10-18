@@ -6,6 +6,7 @@ import {
     proficiencyBonus as calculateProficiencyBonus,
     spellAttackBonus as calculateSpellAttackBonus,
     spellSaveDc as calculateSpellSaveDc,
+    spellCastingMod as calculateSpellCastingMod,
     type Ability,
     type ProficiencyLevel,
     type Skill,
@@ -386,11 +387,6 @@ export class Character {
     }
 
     get spellSaveDc(): number {
-        console.log("----------")
-        console.log(this.proficiencyBonus)
-        console.log(this.spellcastingScore())
-        console.log(this.abilityScore(this.spellcastingAbility))
-        console.log(this.spellcastingAbility)
         return (
             calculateSpellSaveDc(
                 this.spellcastingScore(),
@@ -915,6 +911,22 @@ export class Character {
                 this.abilityScore(ability),
                 this.proficiencyBonus,
             ) + this.totalStatBonus('spell_save_dc')
+        );
+    }
+
+    spellCastingModForClass(characterClass: string): number {
+        const ability = this.getClassSpellcastingAbility(characterClass);
+
+        if (ability === null) {
+            throw new Error(
+                `No spellcasting ability is configured for ${characterClass}.`,
+            );
+        }
+
+        return (
+            calculateSpellCastingMod(
+                this.abilityScore(ability),
+            ) + this.totalStatBonus('spell_casting_modifier')
         );
     }
 

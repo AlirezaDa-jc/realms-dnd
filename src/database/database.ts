@@ -20,12 +20,10 @@ const CURRENT_APP_VERSION =
 const MIGRATIONS = [
   {
     id: 'character_dm_fields',
-    threshold: '1.0.1',
     run: migrateCharacterDMFields,
   },
   {
     id: 'character_class_levels',
-    threshold: '1.0.1',
     run: migrateCharacterClassLevels,
   },
 ] as const;
@@ -76,44 +74,37 @@ async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
         value TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS version_checker (
-        migration_id TEXT PRIMARY KEY NOT NULL,
-        version TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS migration_status (
+        key TEXT PRIMARY KEY NOT NULL,
+        value INTEGER NOT NULL DEFAULT 0 CHECK (value IN (0, 1))
     );
 `);
 
 
   await db.withTransactionAsync(async () => {
     for (const migration of MIGRATIONS) {
-      const versionRow = await db.getFirstAsync<{ version: string }>(
-        `SELECT version
-         FROM version_checker
-         WHERE migration_id = ?`,
+      const status = await db.getFirstAsync<{ value: number }>(
+        `SELECT value
+             FROM migration_status
+             WHERE key = ?`,
         migration.id,
       );
 
-      const shouldRun =
-        !versionRow ||
-        !isValidVersion(versionRow.version) ||
-        compareVersions(
-          versionRow.version,
-          migration.threshold,
-        ) <= 0;
-
-      if (!shouldRun) {
+      // Skip migrations that have already completed.
+      if (status?.value === 1) {
         continue;
       }
 
+      // Run the migration.
       await migration.run(db);
 
-      // Mark this migration only after it completes successfully.
+      // Mark it completed only after it succeeds.
       await db.runAsync(
-        `INSERT INTO version_checker (migration_id, version)
-         VALUES (?, ?)
-         ON CONFLICT(migration_id) DO UPDATE SET
-           version = excluded.version`,
+        `INSERT INTO migration_status (key, value)
+             VALUES (?, 1)
+             ON CONFLICT(key) DO UPDATE SET
+                 value = excluded.value`,
         migration.id,
-        CURRENT_APP_VERSION,
       );
     }
   });
@@ -373,7 +364,7 @@ async function migrateCharacterClassLevels(
         if (
           spell &&
           typeof spell === 'object' &&
-          spell.sourceClass !== firstClass
+          !spell.sourceClass
         ) {
           spell.sourceClass = firstClass;
           changed = true;

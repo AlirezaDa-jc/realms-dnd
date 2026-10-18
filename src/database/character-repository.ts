@@ -1,5 +1,5 @@
-import * as Crypto from 'expo-crypto';
 import { Character } from '@/models/character';
+import * as Crypto from 'expo-crypto';
 import { characterFromJSON, characterToJSON } from './character-serializer';
 import { getDatabase } from './database';
 

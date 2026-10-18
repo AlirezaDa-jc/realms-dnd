@@ -546,6 +546,7 @@ export default function Dashboard({
                         onAddTrait={handleAddTrait}
                         onRemoveTrait={handleRemoveTrait}
                         onUploadPortrait={handleUploadPortrait}
+                        onAddBonus={handleAddCombatBonus}
                     />
                 </View>
             </View>

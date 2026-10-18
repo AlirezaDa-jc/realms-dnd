@@ -29,6 +29,7 @@ type HeroSectionProps = {
     onRemoveFeat: (feat: string) => void;
     onUploadPortrait: (uri: string) => void | Promise<void>;
     onTakeRest: (restType: RecoveryType) => void | Promise<void>;
+    onAddBonus?: (stat: CombatStat, title: string) => void;
     horizontal?: boolean;
 };
 
@@ -43,6 +44,7 @@ export default function HeroSection({
     onRemoveFeat,
     onUploadPortrait,
     onTakeRest,
+    onAddBonus,
     horizontal = true,
 }: HeroSectionProps) {
     const scheme = useColorScheme();
@@ -470,6 +472,11 @@ export default function HeroSection({
                                     entry.characterClass,
                                 );
 
+                            const spellCastingMod =
+                                character.spellCastingModForClass(
+                                    entry.characterClass,
+                                );
+
                             const spellAttackBonus =
                                 character.spellAttackBonusForClass(
                                     entry.characterClass,
@@ -560,10 +567,9 @@ export default function HeroSection({
                                             </Text>
                                         </View>
                                     </View>
-
                                     <View
                                         style={{
-                                            flexDirection: 'row',
+                                            flexDirection: 'column',
                                             gap: 10,
                                         }}
                                     >
@@ -596,6 +602,33 @@ export default function HeroSection({
                                             >
                                                 {spellSaveDc ?? '—'}
                                             </Text>
+                                            <Pressable
+                                                onPress={() =>
+                                                    onAddBonus?.('spell_save_dc', `${entry.characterClass} Spell Save DC`)
+                                                }
+                                                disabled={!onAddBonus}
+                                                style={{
+                                                    backgroundColor: colors.backgroundSelected,
+                                                    borderColor: colors.border,
+                                                    borderWidth: 1,
+                                                    borderRadius: 8,
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    opacity: onAddBonus ? 1 : 0.5,
+                                                }}
+                                            >
+                                                <Text
+                                                    style={{
+                                                        color: colors.text,
+                                                        fontSize: 12,
+                                                        fontWeight: '600',
+                                                    }}
+                                                >
+                                                    Bonus
+                                                </Text>
+                                            </Pressable>
                                         </View>
 
                                         <View
@@ -629,6 +662,93 @@ export default function HeroSection({
                                                     ? '—'
                                                     : `${spellAttackBonus >= 0 ? '+' : ''}${spellAttackBonus}`}
                                             </Text>
+                                            <Pressable
+                                                onPress={() =>
+                                                    onAddBonus?.('spell_attack_bonus', `${entry.characterClass} Spell Attack`,)
+                                                }
+                                                disabled={!onAddBonus}
+                                                style={{
+                                                    backgroundColor: colors.backgroundSelected,
+                                                    borderColor: colors.border,
+                                                    borderWidth: 1,
+                                                    borderRadius: 8,
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    opacity: onAddBonus ? 1 : 0.5,
+                                                }}
+                                            >
+                                                <Text
+                                                    style={{
+                                                        color: colors.text,
+                                                        fontSize: 12,
+                                                        fontWeight: '600',
+                                                    }}
+                                                >
+                                                    Bonus
+                                                </Text>
+                                            </Pressable>
+                                        </View>
+
+                                        <View
+                                            style={{
+                                                flex: 1,
+                                                padding: 10,
+                                                gap: 5,
+                                                borderRadius: 9,
+                                                backgroundColor:
+                                                    'rgba(128,128,128,0.06)',
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 10,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                SPELL CASTING MODIFIER
+                                            </Text>
+
+                                            <Text
+                                                style={{
+                                                    color: colors.text,
+                                                    fontSize: 22,
+                                                    fontWeight: '800',
+                                                }}
+                                            >
+                                                {spellCastingMod == null
+                                                    ? '—'
+                                                    : `${spellCastingMod >= 0 ? '+' : ''}${spellCastingMod}`}
+                                            </Text>
+                                            <Pressable
+                                                onPress={() =>
+                                                    onAddBonus?.('spell_casting_modifier', `${entry.characterClass} Spell Casting Modifier`)
+                                                }
+                                                disabled={!onAddBonus}
+                                                style={{
+                                                    backgroundColor: colors.backgroundSelected,
+                                                    borderColor: colors.border,
+                                                    borderWidth: 1,
+                                                    borderRadius: 8,
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    opacity: onAddBonus ? 1 : 0.5,
+                                                }}
+                                            >
+                                                <Text
+                                                    style={{
+                                                        color: colors.text,
+                                                        fontSize: 12,
+                                                        fontWeight: '600',
+                                                    }}
+                                                >
+                                                    Bonus
+                                                </Text>
+                                            </Pressable>
                                         </View>
                                     </View>
                                 </View>

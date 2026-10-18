@@ -395,7 +395,7 @@ export default function CharactersScreen() {
 
         try {
             await setActiveCharacter(id);
-            router.replace('/');
+            router.replace(isDMMode ? '/dm/character' : '/player');
         } catch (err) {
             showInfo(
                 'Could not open character',
