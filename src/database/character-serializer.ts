@@ -107,6 +107,7 @@ export function characterFromJSON(json: string): Character {
                 item.quantity,
                 item.weight,
                 item.value,
+                item.description,
             ),
     );
 

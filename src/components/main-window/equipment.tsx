@@ -24,6 +24,7 @@ type EquipmentForm = {
     quantity: string;
     weight: string;
     value: string;
+    description: string;
 };
 
 const EMPTY_FORM: EquipmentForm = {
@@ -31,6 +32,7 @@ const EMPTY_FORM: EquipmentForm = {
     quantity: '1',
     weight: '0',
     value: '0',
+    description: '',
 };
 
 export default function Equipment({
@@ -70,6 +72,7 @@ export default function Equipment({
             quantity: String(item.quantity),
             weight: String(item.weight),
             value: item.value,
+            description: item.description,
         });
         setModalVisible(true);
     };
@@ -85,6 +88,7 @@ export default function Equipment({
         const quantity = Number(form.quantity);
         const weight = Number(form.weight);
         const value = form.value.trim();
+        const description = form.description.trim();
 
         if (!name) {
             showInfo('Invalid equipment', 'Enter an equipment name.');
@@ -126,6 +130,7 @@ export default function Equipment({
                 quantity,
                 weight,
                 value,
+                description,
             );
 
             if (editingIndex === null) {
@@ -318,6 +323,16 @@ export default function Equipment({
                             Value: {item.value}
                         </Text>
 
+                        <Text
+                            style={{
+                                color: colors.textSecondary,
+                                fontSize: 12,
+                                lineHeight: 18,
+                            }}
+                        >
+                            {item.description || 'No description provided.'}
+                        </Text>
+
                         <View
                             style={{
                                 flexDirection: 'row',
@@ -499,6 +514,30 @@ export default function Equipment({
                             />
                         </View>
 
+
+                        <View style={{ gap: 6 }}>
+                            <Text style={{ color: colors.textSecondary }}>
+                                Name
+                            </Text>
+                            <TextInput
+                                value={form.description}
+                                onChangeText={(v) =>
+                                    updateForm('description', v)
+                                }
+                                placeholder="Describe the item..."
+                                placeholderTextColor={colors.textSecondary}
+                                multiline
+                                textAlignVertical="top"
+                                style={{
+                                    minHeight: 100, color: colors.text,
+                                    backgroundColor: cardBackground,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    borderRadius: 8,
+                                    padding: 12,
+                                }}
+                            />
+                        </View>
                         <View style={{ flexDirection: 'row', gap: 10 }}>
                             <Pressable
                                 disabled={saving}
