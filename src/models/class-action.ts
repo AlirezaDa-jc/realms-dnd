@@ -12,6 +12,7 @@ export class ClassAction {
   maximumUses: number | null;
   currentUses: number | null;
   recovery: RecoveryType | null;
+  dynamicResourceCost: boolean;
 
   constructor({
     name,
@@ -21,6 +22,7 @@ export class ClassAction {
     maximumUses = null,
     currentUses = null,
     recovery = null,
+    dynamicResourceCost = false
   }: {
     name: string;
     description?: string;
@@ -29,6 +31,7 @@ export class ClassAction {
     maximumUses?: number | null;
     currentUses?: number | null;
     recovery?: RecoveryType | null;
+    dynamicResourceCost: boolean;
   }) {
     this.name = name.trim();
     this.description = description;
@@ -39,7 +42,7 @@ export class ClassAction {
     this.maximumUses = maximumUses;
     this.currentUses = currentUses;
     this.recovery = recovery;
-
+    this.dynamicResourceCost = dynamicResourceCost;
     this.validate();
   }
 
@@ -50,7 +53,7 @@ export class ClassAction {
 
     if (
       (this.resourceName === null) !==
-      (this.resourceCost === null)
+      (this.resourceCost === null) && !this.dynamicResourceCost
     ) {
       throw new Error(
         'Resource name and resource cost must be configured together.',
@@ -59,13 +62,14 @@ export class ClassAction {
 
     if (this.resourceName !== null) {
       this.resourceName = this.resourceName.trim();
+      if (!this.dynamicResourceCost) {
+        if (!this.resourceName) {
+          throw new Error('Resource name cannot be empty.');
+        }
 
-      if (!this.resourceName) {
-        throw new Error('Resource name cannot be empty.');
-      }
-
-      if (this.resourceCost! <= 0) {
-        throw new Error('Resource cost must be positive.');
+        if (this.resourceCost! <= 0) {
+          throw new Error('Resource cost must be positive.');
+        }
       }
     }
 
