@@ -251,7 +251,7 @@ export default function CombatStats({
 
                 <View
                     style={{
-                        flexDirection: 'row',
+                        flexDirection: 'column',
                         gap: 16,
                     }}
                 >
@@ -264,7 +264,7 @@ export default function CombatStats({
 
                         <View
                             style={{
-                                flexDirection: 'column',
+                                flexDirection: 'row',
                                 gap: 4,
                             }}
                         >
