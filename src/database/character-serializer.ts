@@ -1,4 +1,3 @@
-
 import { Character } from '@/models/character';
 import { ClassAction } from '@/models/class-action';
 import { EquipmentItem } from '@/models/equipment';
@@ -7,6 +6,7 @@ import { Spell } from '@/models/spell';
 import { SpellSlot } from '@/models/spell-slot';
 import { Spellbook } from '@/models/spellbook';
 import { StatBonus } from '@/models/stat-bonus';
+import { Weapon } from '@/models/weapon';
 
 type SerializedResource = {
     name: string;
@@ -19,7 +19,6 @@ export function characterToJSON(character: Character): string {
     return JSON.stringify(character);
 }
 
-
 export function characterFromJSON(json: string): Character {
     const data = JSON.parse(json);
 
@@ -28,7 +27,7 @@ export function characterFromJSON(json: string): Character {
         ? data.classLevels
         : typeof data.characterClass === 'string' &&
             data.characterClass.trim().length > 0
-            ? [
+          ? [
                 {
                     characterClass: data.characterClass,
                     subClass:
@@ -37,12 +36,12 @@ export function characterFromJSON(json: string): Character {
                             : '',
                     level:
                         Number.isInteger(Number(data.level)) &&
-                            Number(data.level) >= 1
+                        Number(data.level) >= 1
                             ? Number(data.level)
                             : 1,
                 },
             ]
-            : [];
+          : [];
 
     // Remove legacy fields so classLevels is the source of truth.
     const {
@@ -62,6 +61,7 @@ export function characterFromJSON(json: string): Character {
         resources: [],
         classActions: [],
         equipment: [],
+        weapons: [],
         statBonuses: [],
     });
 
@@ -84,7 +84,7 @@ export function characterFromJSON(json: string): Character {
     );
 
     character.resources = (
-        data.resources as SerializedResource[] ?? []
+        (data.resources ?? []) as SerializedResource[]
     ).map(
         (resource) =>
             new CharacterResource(
@@ -101,18 +101,28 @@ export function characterFromJSON(json: string): Character {
     );
 
     character.equipment = (data.equipment ?? []).map(
-        (item: ConstructorParameters<typeof EquipmentItem>) =>
-            new EquipmentItem(item.name, item.quantity, item.weight),
+        (item: ConstructorParameters<typeof EquipmentItem>[0]) =>
+            new EquipmentItem(
+                item.name,
+                item.quantity,
+                item.weight,
+                item.value,
+            ),
     );
 
     character.statBonuses = (data.statBonuses ?? []).map(
-        (bonus: ConstructorParameters<typeof StatBonus>) =>
+        (bonus: ConstructorParameters<typeof StatBonus>[0]) =>
             new StatBonus(
                 bonus.stat,
                 bonus.amount,
                 bonus.reason,
                 bonus.category,
             ),
+    );
+
+    character.weapons = (data.weapons ?? []).map(
+        (weapon: ConstructorParameters<typeof Weapon>[0]) =>
+            new Weapon(weapon),
     );
 
     return character;

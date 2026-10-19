@@ -5,6 +5,7 @@ export const DASHBOARD_SECTIONS = [
     { id: 'overview', label: 'Overview' },
     { id: 'character', label: 'Character' },
     { id: 'combat-stats', label: 'Combat Stats' },
+    { id: 'weapons', label: 'Weapons' },
     { id: 'spell-slots', label: 'Spell Slots' },
     { id: 'ability-scores', label: 'Ability Scores' },
     { id: 'equipment', label: 'Equipment' },

@@ -217,6 +217,9 @@ export default function DMIndexScreen() {
         ),
     ];
 
+    const getWeapons = (character: Character) =>
+        character.weapons ?? [];
+
     const actionTitle =
         action === 'damage'
             ? 'Take Damage'
@@ -377,7 +380,7 @@ export default function DMIndexScreen() {
                             const defenses = getDefenses(character);
                             const feats = character.feats ?? [];
                             const isSaving = savingId === id;
-
+                            const weapons = getWeapons(character);
                             return (
                                 <View
                                     key={id}
@@ -669,7 +672,92 @@ export default function DMIndexScreen() {
                                             </Text>
                                         ) : null}
                                     </CompactSection>
+                                    <CompactSection
+                                        title="Weapons"
+                                        emptyText="No weapons configured"
+                                        color={colors.text}
+                                        mutedColor={colors.textSecondary}
+                                    >
+                                        {weapons.length > 0 ? (
+                                            <View style={{ gap: 6 }}>
+                                                {weapons.map((weapon) => {
+                                                    const attackBonus = weapon.getAttackBonus(character);
+                                                    const damageBonus = weapon.getDamageBonus(character);
 
+                                                    const damageFormula = weapon.isUnarmed
+                                                        ? `${Math.max(1, Number(weapon.damageDice) + damageBonus)}`
+                                                        : `${weapon.damageDice}${damageBonus !== 0
+                                                            ? ` ${damageBonus > 0 ? '+' : '−'} ${Math.abs(damageBonus)}`
+                                                            : ''
+                                                        }`;
+
+                                                    const properties = [
+                                                        weapon.isFinesse ? 'Finesse' : null,
+                                                        weapon.isThrown ? 'Thrown' : null,
+                                                        weapon.isBound ? 'Bound' : null,
+                                                        weapon.isUnarmed ? 'Unarmed' : null,
+                                                    ].filter(Boolean);
+
+                                                    return (
+                                                        <View
+                                                            key={weapon.id}
+                                                            style={[
+                                                                styles.weaponItem,
+                                                                {
+                                                                    backgroundColor: colors.background,
+                                                                    borderColor: colors.border,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            <Text
+                                                                numberOfLines={1}
+                                                                style={[
+                                                                    styles.resourceName,
+                                                                    { color: colors.text },
+                                                                ]}
+                                                            >
+                                                                {weapon.name}
+                                                            </Text>
+
+                                                            <View style={styles.weaponStats}>
+                                                                <Text
+                                                                    style={[
+                                                                        styles.weaponStat,
+                                                                        { color: colors.text },
+                                                                    ]}
+                                                                >
+                                                                    ATK{' '}
+                                                                    {attackBonus >= 0 ? '+' : ''}
+                                                                    {attackBonus}
+                                                                </Text>
+
+                                                                <Text
+                                                                    style={[
+                                                                        styles.weaponStat,
+                                                                        { color: colors.text },
+                                                                    ]}
+                                                                >
+                                                                    {damageFormula}
+                                                                </Text>
+                                                            </View>
+
+                                                            <Text
+                                                                style={[
+                                                                    styles.mutedSmall,
+                                                                    { color: colors.textSecondary },
+                                                                ]}
+                                                            >
+                                                                {weapon.damageType}
+                                                                {properties.length > 0
+                                                                    ? ` · ${properties.join(' · ')}`
+                                                                    : ''}
+                                                            </Text>
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        ) : null}
+                                    </CompactSection>
                                     {/* Opens the main dashboard for this character */}
                                     <Pressable
                                         onPress={() => void openDetails(id)}
@@ -1087,5 +1175,25 @@ const styles = StyleSheet.create({
     },
     disabled: {
         opacity: 0.5,
+    },
+    weaponItem: {
+        padding: 7,
+        borderWidth: 1,
+        borderRadius: 7,
+        gap: 4,
+    },
+    weaponStats: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        gap: 4,
+    },
+    weaponStat: {
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    resourceName: {
+        fontSize: 11,
+        fontWeight: '800',
     },
 });

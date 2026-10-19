@@ -26,6 +26,10 @@ const MIGRATIONS = [
     id: 'character_class_levels',
     run: migrateCharacterClassLevels,
   },
+  {
+    id: 'character_unarmed_strike',
+    run: migrateCharacterUnarmedStrike,
+  },
 ] as const;
 
 export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
@@ -382,5 +386,74 @@ async function migrateCharacterClassLevels(
         row.id,
       );
     }
+  }
+}
+/**
+ * Adds an Unarmed Strike to every character that does not
+ * already have one.
+ */
+async function migrateCharacterUnarmedStrike(
+  db: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const rows = await db.getAllAsync<{
+    id: string;
+    data_json: string;
+  }>(`
+    SELECT id, data_json
+    FROM characters
+  `);
+
+  for (const row of rows) {
+    let data: Record<string, any>;
+
+    try {
+      data = JSON.parse(row.data_json);
+    } catch {
+      console.warn(
+        `Skipping Unarmed Strike migration: invalid JSON for ${row.id}`,
+      );
+      continue;
+    }
+
+    const weapons = Array.isArray(data.weapons)
+      ? data.weapons
+      : [];
+
+    const hasUnarmedStrike = weapons.some(
+      (weapon: any) =>
+        weapon &&
+        typeof weapon === 'object' &&
+        weapon.isUnarmed === true,
+    );
+
+    if (hasUnarmedStrike) {
+      continue;
+    }
+
+    weapons.push({
+      id: `weapon-unarmed-${row.id}`,
+      name: 'Unarmed Strike',
+      attackAbility: 'str',
+      isProficient: true,
+      damageAbility: 'str',
+      damageDice: '1',
+      damageType: 'bludgeoning',
+      statBonuses: [],
+      isFinesse: false,
+      isThrown: false,
+      isBound: false,
+      isUnarmed: true,
+    });
+
+    data.weapons = weapons;
+
+    await db.runAsync(
+      `UPDATE characters
+       SET data_json = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      JSON.stringify(data),
+      row.id,
+    );
   }
 }

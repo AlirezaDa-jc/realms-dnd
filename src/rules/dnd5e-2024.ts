@@ -45,10 +45,12 @@ export const COMBAT_STATS = [
 export type CombatStat = (typeof COMBAT_STATS)[number];
 
 export const BONUS_CATEGORIES = [
-  'ability_score',
-  'ability_check',
-  'saving_throw',
-  'skill',
+    'ability_score',
+    'ability_check',
+    'saving_throw',
+    'skill',
+    'weapon_attack',
+    'weapon_damage',
 ] as const;
 
 export type BonusCategory = (typeof BONUS_CATEGORIES)[number];

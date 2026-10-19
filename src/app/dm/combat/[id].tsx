@@ -779,7 +779,7 @@ export default function CombatScreen() {
         const resources = getResources(character);
         const defenses = getDefenses(character);
         const feats = character.feats ?? [];
-
+        const weapons = character.weapons ?? [];
         return (
             <View
                 key={snapshot.characterId}
@@ -972,14 +972,14 @@ export default function CombatScreen() {
                                             <View
                                                 style={{
                                                     width: `${resource.maximum > 0
-                                                            ? Math.max(
-                                                                0,
-                                                                Math.min(
-                                                                    100,
-                                                                    (resource.current / resource.maximum) * 100,
-                                                                ),
-                                                            )
-                                                            : 0
+                                                        ? Math.max(
+                                                            0,
+                                                            Math.min(
+                                                                100,
+                                                                (resource.current / resource.maximum) * 100,
+                                                            ),
+                                                        )
+                                                        : 0
                                                         }%`,
                                                     height: '100%',
                                                     backgroundColor: colors.accent,
@@ -1031,6 +1031,129 @@ export default function CombatScreen() {
                         <Text style={[styles.detailText, { color: colors.textSecondary }]}>
                             {defenses.join(' · ')}
                         </Text>
+                    ) : null,
+                )}
+
+                {renderSection(
+                    'Weapons',
+                    'No weapons equipped',
+                    weapons.length > 0 ? (
+                        <View style={styles.sectionItems}>
+                            {weapons.map((weapon) => {
+                                const attackBonus = weapon.getAttackBonus(character);
+                                const damageBonus = weapon.getDamageBonus(character);
+
+                                const damageFormula = weapon.isUnarmed
+                                    ? `${Math.max(1, Number(weapon.damageDice) + damageBonus)} ${weapon.damageType}`
+                                    : damageBonus === 0
+                                        ? `${weapon.damageDice} ${weapon.damageType}`
+                                        : `${weapon.damageDice} ${damageBonus > 0 ? '+' : '−'} ${Math.abs(damageBonus)} ${weapon.damageType}`;
+                                        
+                                const properties = [
+                                    weapon.isProficient ? 'Proficient' : null,
+                                    weapon.isFinesse ? 'Finesse' : null,
+                                    weapon.isThrown ? 'Thrown' : null,
+                                    weapon.isBound ? 'Bound' : null,
+                                    weapon.isUnarmed ? 'Unarmed' : null,
+                                ].filter(Boolean);
+
+                                return (
+                                    <View
+                                        key={weapon.id}
+                                        style={{
+                                            padding: 8,
+                                            gap: 5,
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                            borderRadius: 8,
+                                            backgroundColor: colors.background,
+                                        }}
+                                    >
+                                        <Text
+                                            style={{
+                                                color: colors.text,
+                                                fontSize: 11,
+                                                fontWeight: '800',
+                                            }}
+                                        >
+                                            {weapon.name}
+                                        </Text>
+
+                                        <View
+                                            style={{
+                                                flexDirection: 'row',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                            }}
+                                        >
+                                            <View style={{ flex: 1 }}>
+                                                <Text
+                                                    style={[
+                                                        styles.mutedSmall,
+                                                        { color: colors.textSecondary },
+                                                    ]}
+                                                >
+                                                    ATTACK
+                                                </Text>
+                                                <Text
+                                                    style={{
+                                                        color: colors.accent,
+                                                        fontSize: 15,
+                                                        fontWeight: '900',
+                                                    }}
+                                                >
+                                                    {attackBonus >= 0 ? '+' : ''}
+                                                    {attackBonus}
+                                                </Text>
+                                            </View>
+
+                                            <View style={{ flex: 2 }}>
+                                                <Text
+                                                    style={[
+                                                        styles.mutedSmall,
+                                                        { color: colors.textSecondary },
+                                                    ]}
+                                                >
+                                                    DAMAGE
+                                                </Text>
+                                                <Text
+                                                    style={{
+                                                        color: colors.text,
+                                                        fontSize: 11,
+                                                        fontWeight: '700',
+                                                    }}
+                                                >
+                                                    {damageFormula}
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        <Text
+                                            style={[
+                                                styles.mutedSmall,
+                                                { color: colors.textSecondary },
+                                            ]}
+                                        >
+                                            {weapon.attackAbility.toUpperCase()} attack
+                                            {' · '}
+                                            {weapon.damageAbility.toUpperCase()} damage
+                                        </Text>
+
+                                        {properties.length > 0 && (
+                                            <Text
+                                                style={[
+                                                    styles.mutedSmall,
+                                                    { color: colors.textSecondary },
+                                                ]}
+                                            >
+                                                {properties.join(' · ')}
+                                            </Text>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
                     ) : null,
                 )}
 

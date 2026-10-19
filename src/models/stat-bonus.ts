@@ -67,6 +67,18 @@ export class StatBonus {
       if (!(SKILLS as readonly string[]).includes(this.stat)) {
         throw new Error(`Unsupported skill: ${this.stat}`);
       }
+    } else if (
+      this.category === 'weapon_attack' ||
+      this.category === 'weapon_damage'
+    ) {
+      const expectedStat =
+        this.category === 'weapon_attack' ? 'attack' : 'damage';
+
+      if (this.stat !== expectedStat) {
+        throw new Error(
+          `Category '${this.category}' requires stat '${expectedStat}'.`,
+        );
+      }
     }
   }
 }

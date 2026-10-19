@@ -33,6 +33,7 @@ import SpellColumn from './spell-column';
 import type { Ability } from '@/models/character';
 import type { BonusCategory, CombatStat, Skill } from '@/rules/dnd5e-2024';
 import type { DashboardSection } from './sidebar';
+import WeaponCards from './weapon-cards';
 
 type DashboardProps = {
     onSectionLayout?: (
@@ -563,6 +564,20 @@ export default function Dashboard({
                     character={character}
                     onUpdate={handleCombatUpdate}
                     onAddBonus={handleAddCombatBonus}
+                />
+            </View>
+
+            <View
+                onLayout={(event) =>
+                    onSectionLayout?.(
+                        'weapons',
+                        event.nativeEvent.layout.y,
+                    )
+                }
+            >
+                <WeaponCards
+                    character={character}
+                    onUpdate={handleCombatUpdate}
                 />
             </View>
 

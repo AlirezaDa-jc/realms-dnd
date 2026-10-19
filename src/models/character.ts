@@ -1,4 +1,3 @@
-
 import {
     ABILITIES,
     SKILLS,
@@ -20,6 +19,7 @@ import { Spell } from './spell';
 import { SpellSlot } from './spell-slot';
 import { Spellbook } from './spellbook';
 import { StatBonus } from './stat-bonus';
+import { createUnarmedStrike, Weapon } from './weapon';
 
 export type { Ability, ProficiencyLevel };
 
@@ -52,7 +52,7 @@ type RequiredCharacterFields =
     | 'maxHp'
     | 'currentHp'
     | 'speed';
-    
+
 /**
  * Fields collected by the character form are required.
  * All other fields may be omitted when creating a character.
@@ -129,6 +129,7 @@ export class Character {
     weaponProficiencies: string[];
     toolProficiencies: string[];
     equipment: EquipmentItem[];
+    weapons: Weapon[];
     inspiration: boolean;
     notes: string;
     portraitPath: string;
@@ -241,6 +242,7 @@ export class Character {
         this.weaponProficiencies = [...(data.weaponProficiencies ?? [])];
         this.toolProficiencies = [...(data.toolProficiencies ?? [])];
         this.equipment = [...(data.equipment ?? [])];
+        this.weapons = [...(data.weapons ?? [])];
         this.inspiration = data.inspiration ?? false;
         this.notes = data.notes ?? '';
         this.portraitPath = data.portraitPath ?? '';
@@ -250,7 +252,9 @@ export class Character {
         this.challengeRating = data.challengeRating ?? null;
         this.encounterRole = data.encounterRole ?? '';
         this.party = data.party ?? false;
-
+        if (!this.weapons.some((weapon) => weapon.isUnarmed)) {
+            this.weapons.push(createUnarmedStrike());
+        }
         this.validate();
     }
 
