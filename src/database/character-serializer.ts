@@ -1,3 +1,4 @@
+import type { CharacterClassLevel } from '@/models/character-class-level';
 import { Character } from '@/models/character';
 import { ClassAction } from '@/models/class-action';
 import { EquipmentItem } from '@/models/equipment';
@@ -20,14 +21,15 @@ export function characterToJSON(character: Character): string {
 }
 
 export function characterFromJSON(json: string): Character {
-    const data = JSON.parse(json);
+    const parsed = JSON.parse(json);
+    const data = parsed.character ?? parsed;
 
     // Migrate legacy single-class data to classLevels.
-    const classLevels = Array.isArray(data.classLevels)
+    const classLevels: CharacterClassLevel[] = Array.isArray(data.classLevels)
         ? data.classLevels
         : typeof data.characterClass === 'string' &&
             data.characterClass.trim().length > 0
-          ? [
+            ? [
                 {
                     characterClass: data.characterClass,
                     subClass:
@@ -36,12 +38,12 @@ export function characterFromJSON(json: string): Character {
                             : '',
                     level:
                         Number.isInteger(Number(data.level)) &&
-                        Number(data.level) >= 1
+                            Number(data.level) >= 1
                             ? Number(data.level)
                             : 1,
                 },
             ]
-          : [];
+            : [];
 
     // Remove legacy fields so classLevels is the source of truth.
     const {

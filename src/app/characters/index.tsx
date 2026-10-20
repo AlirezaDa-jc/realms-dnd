@@ -280,7 +280,6 @@ export default function CharactersScreen() {
             data.portraitPath = '';
 
             const imported = characterFromJSON(JSON.stringify(data));
-
             if (!imported || typeof imported !== 'object') {
                 throw new Error(
                     'The selected file does not contain a valid character.',

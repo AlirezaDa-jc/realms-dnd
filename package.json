@@ -1,7 +1,7 @@
 {
   "name": "realms",
   "main": "expo-router/entry",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Realms — A D&D 5e (2024) character manager for managing characters, spells, equipment, and resources.",
   "author": {
     "name": "Alireza Dolatabadi"
