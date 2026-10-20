@@ -25,6 +25,7 @@ const MIME_TYPES = {
 };
 
 let localServer;
+const PORT = 4173;
 
 function startLocalServer() {
     return new Promise((resolve, reject) => {
@@ -82,7 +83,9 @@ function startLocalServer() {
 
         server.once('error', reject);
 
-        server.listen(0, '127.0.0.1', () => {
+        server.listen(PORT, '127.0.0.1', () => {
+            localServer = server;
+
             localServer = server;
             const address = server.address();
 
@@ -91,7 +94,7 @@ function startLocalServer() {
                 return;
             }
 
-            resolve(`http://127.0.0.1:${address.port}`);
+            resolve(`http://127.0.0.1:${PORT}`);
         });
     });
 }
