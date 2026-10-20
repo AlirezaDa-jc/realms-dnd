@@ -888,9 +888,7 @@ export class Character {
         const ability = this.getClassSpellcastingAbility(characterClass);
 
         if (ability === null) {
-            throw new Error(
-                `No spellcasting ability is configured for ${characterClass}.`,
-            );
+            return 0;
         }
 
         return (
@@ -905,9 +903,7 @@ export class Character {
         const ability = this.getClassSpellcastingAbility(characterClass);
 
         if (ability === null) {
-            throw new Error(
-                `No spellcasting ability is configured for ${characterClass}.`,
-            );
+            return 0;
         }
 
         return (
@@ -922,9 +918,7 @@ export class Character {
         const ability = this.getClassSpellcastingAbility(characterClass);
 
         if (ability === null) {
-            throw new Error(
-                `No spellcasting ability is configured for ${characterClass}.`,
-            );
+            return 0;
         }
 
         return (

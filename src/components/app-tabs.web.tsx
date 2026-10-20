@@ -37,15 +37,19 @@ export default function AppTabs({ mode }: AppTabsProps) {
               <TabButton>Home</TabButton>
             </TabTrigger>
           ) : (
-            <TabTrigger name="index" href="/dm" asChild>
-              <TabButton>Party</TabButton>
-            </TabTrigger>
-          )}
+            <>
+              <TabTrigger name="index" href="/dm" asChild>
+                <TabButton>Party</TabButton>
+              </TabTrigger>
 
-          {!isPlayer && (
-            <TabTrigger name="combat" href="/dm/combat" asChild>
-              <TabButton>Combat</TabButton>
-            </TabTrigger>
+              <TabTrigger name="combat" href="/dm/combat" asChild>
+                <TabButton>Combat</TabButton>
+              </TabTrigger>
+
+              <TabTrigger name="details" href="/dm/character" asChild>
+                <TabButton>Details</TabButton>
+              </TabTrigger>
+            </>
           )}
 
           <TabTrigger
