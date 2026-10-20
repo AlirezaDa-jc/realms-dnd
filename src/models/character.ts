@@ -878,6 +878,10 @@ export class Character {
             entry.characterClass.toLocaleLowerCase() ===
             this.characterClass.toLocaleLowerCase()
         ) {
+            console.log(characterClass)
+            console.log(this.characterClass)
+            console.log(this.spellcastingAbility)
+
             return this.spellcastingAbility;
         }
 
@@ -901,7 +905,6 @@ export class Character {
 
     spellSaveDcForClass(characterClass: string): number {
         const ability = this.getClassSpellcastingAbility(characterClass);
-
         if (ability === null) {
             return 0;
         }

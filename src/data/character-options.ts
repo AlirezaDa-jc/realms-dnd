@@ -19,6 +19,8 @@ export const SPECIES_GROUPS = [
       'Aarakocra',
       'Aasimar',
       'Changeling',
+      'Celestial',
+      'Construct',
       'Deep Gnome',
       'Duergar',
       'Eladrin',
@@ -77,6 +79,7 @@ export const CHARACTER_CLASSES = [
   'Warlock',
   'Wizard',
   'Artificer',
+  'Non-specified',
 ] as const;
 
 export const ABILITIES = [

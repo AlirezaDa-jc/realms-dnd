@@ -66,8 +66,15 @@ export default function ClassActions({
     const [form, setForm] = useState<ActionForm>({ ...EMPTY_FORM });
     const [saving, setSaving] = useState(false);
 
+    // Index of the action currently being edited; null means adding a new action.
+    const [editingActionIndex, setEditingActionIndex] = useState<number | null>(
+        null,
+    );
+
     const [useModalVisible, setUseModalVisible] = useState(false);
-    const [selectedActionIndex, setSelectedActionIndex] = useState<number | null>(null);
+    const [selectedActionIndex, setSelectedActionIndex] = useState<number | null>(
+        null,
+    );
     const [useAmount, setUseAmount] = useState('1');
 
     const styles = {
@@ -123,8 +130,48 @@ export default function ClassActions({
         setForm((previous) => ({ ...previous, [key]: value }));
     }
 
-    function openAddModal() {
+    function closeActionModal() {
+        if (saving) return;
+
+        setModalVisible(false);
+        setEditingActionIndex(null);
         setForm({ ...EMPTY_FORM });
+    }
+
+    function openAddModal() {
+        setEditingActionIndex(null);
+        setForm({ ...EMPTY_FORM });
+        setModalVisible(true);
+    }
+
+    function openEditModal(action: ClassAction, index: number) {
+        if (saving) return;
+
+        setEditingActionIndex(index);
+
+        setForm({
+            name: action.name,
+            description: action.description,
+            resourceName: action.resourceName,
+            resourceCost:
+                action.resourceCost !== null
+                    ? String(action.resourceCost)
+                    : '1',
+            limitedUses:
+                action.maximumUses !== null &&
+                action.currentUses !== null,
+            maximumUses:
+                action.maximumUses !== null
+                    ? String(action.maximumUses)
+                    : '1',
+            currentUses:
+                action.currentUses !== null
+                    ? String(action.currentUses)
+                    : '1',
+            recovery: action.recovery ?? 'long_rest',
+            dynamicResourceCost: action.dynamicResourceCost,
+        });
+
         setModalVisible(true);
     }
 
@@ -211,11 +258,29 @@ export default function ClassActions({
             return;
         }
 
+        const updatedActions = [...character.classActions];
+
+        if (editingActionIndex !== null) {
+            // Replace the existing action rather than adding a duplicate.
+            if (!updatedActions[editingActionIndex]) {
+                showInfo(
+                    'Action not found',
+                    'This action no longer exists. Please try again.',
+                );
+                return;
+            }
+
+            updatedActions[editingActionIndex] = action;
+        } else {
+            // Add a new action.
+            updatedActions.push(action);
+        }
+
         const updatedCharacter = Object.assign(
             Object.create(Object.getPrototypeOf(character)),
             character,
             {
-                classActions: [...character.classActions, action],
+                classActions: updatedActions,
             },
         ) as Character;
 
@@ -224,6 +289,7 @@ export default function ClassActions({
         try {
             await onUpdate(updatedCharacter);
             setModalVisible(false);
+            setEditingActionIndex(null);
             setForm({ ...EMPTY_FORM });
         } catch (error) {
             showInfo(
@@ -271,7 +337,7 @@ export default function ClassActions({
                     return `Not enough ${resource.name} (${resource.current}/${action.resourceCost})`;
                 }
             } catch {
-                return `Missing resource: ${action.resourceName} `;
+                return `Missing resource: ${action.resourceName}`;
             }
         }
 
@@ -283,7 +349,7 @@ export default function ClassActions({
                     return `No ${resource.name} remaining`;
                 }
             } catch {
-                return `Missing resource: ${action.resourceName} `;
+                return `Missing resource: ${action.resourceName}`;
             }
         }
 
@@ -354,7 +420,7 @@ export default function ClassActions({
             // The selected cost applies only to this use.
             action.resourceCost = originalCost;
 
-            updatedCharacter.logs.push(`Used class action: ${action.name} `);
+            updatedCharacter.logs.push(`Used class action: ${action.name}`);
 
             await onUpdate(updatedCharacter);
 
@@ -423,7 +489,7 @@ export default function ClassActions({
 
         showConfirm({
             title: 'Remove action',
-            message: `Remove "${action.name}" from this character ? `,
+            message: `Remove "${action.name}" from this character?`,
             confirmLabel: 'Remove',
             cancelLabel: 'Cancel',
             destructive: true,
@@ -579,13 +645,15 @@ export default function ClassActions({
                             action.resourceName !== null &&
                             action.dynamicResourceCost
                         ) {
-                            details.push(`Variable cost · ${action.resourceName} `);
+                            details.push(
+                                `Variable cost · ${action.resourceName}`,
+                            );
                         } else if (
                             action.resourceName !== null &&
                             action.resourceCost !== null
                         ) {
                             details.push(
-                                `${action.resourceCost} ${action.resourceName} `,
+                                `${action.resourceCost} ${action.resourceName}`,
                             );
                         }
 
@@ -627,7 +695,8 @@ export default function ClassActions({
                                 </Text>
 
                                 <Text style={styles.text}>
-                                    {action.description || 'No description provided.'}
+                                    {action.description ||
+                                        'No description provided.'}
                                 </Text>
 
                                 {unavailableReason !== null && (
@@ -651,14 +720,16 @@ export default function ClassActions({
                                 >
                                     <Pressable
                                         disabled={
-                                            saving || unavailableReason !== null
+                                            saving ||
+                                            unavailableReason !== null
                                         }
                                         onPress={() => void useAction(index)}
                                         style={[
                                             styles.button,
                                             {
                                                 opacity:
-                                                    saving || unavailableReason !== null
+                                                    saving ||
+                                                        unavailableReason !== null
                                                         ? 0.4
                                                         : 1,
                                             },
@@ -667,10 +738,41 @@ export default function ClassActions({
                                         <Text
                                             style={{
                                                 ...styles.buttonText,
-                                                color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
+                                                color:
+                                                    scheme === 'dark'
+                                                        ? '#11100F'
+                                                        : '#FFFFFF',
                                             }}
                                         >
-                                            {unavailableReason !== null ? 'Unavailable' : 'Use'}
+                                            {unavailableReason !== null
+                                                ? 'Unavailable'
+                                                : 'Use'}
+                                        </Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                        disabled={saving}
+                                        onPress={() =>
+                                            openEditModal(action, index)
+                                        }
+                                        style={[
+                                            styles.button,
+                                            {
+                                                backgroundColor:
+                                                    colors.background,
+                                                borderWidth: 1,
+                                                borderColor: colors.border,
+                                                opacity: saving ? 0.5 : 1,
+                                            },
+                                        ]}
+                                    >
+                                        <Text
+                                            style={{
+                                                ...styles.buttonText,
+                                                color: colors.text,
+                                            }}
+                                        >
+                                            Edit
                                         </Text>
                                     </Pressable>
 
@@ -700,14 +802,12 @@ export default function ClassActions({
                     })
                 )}
 
-                {/* Add Action Modal */}
+                {/* Add / Edit Class Action Modal */}
                 <Modal
                     visible={modalVisible}
                     transparent
                     animationType="fade"
-                    onRequestClose={() => {
-                        if (!saving) setModalVisible(false);
-                    }}
+                    onRequestClose={closeActionModal}
                 >
                     <View
                         style={{
@@ -724,8 +824,9 @@ export default function ClassActions({
                                 flexGrow: 1,
                                 justifyContent: 'center',
                                 paddingVertical: 20,
+                                width: '100%',
                                 maxWidth: 600,
-                                minWidth: 300,
+                                alignSelf: 'center',
                             }}
                         >
                             <View
@@ -738,15 +839,23 @@ export default function ClassActions({
                                     borderColor: colors.border,
                                 }}
                             >
-                                <Text style={styles.title}>Add Class Action</Text>
+                                <Text style={styles.title}>
+                                    {editingActionIndex !== null
+                                        ? 'Edit Class Action'
+                                        : 'Add Class Action'}
+                                </Text>
 
                                 <View style={{ gap: 6 }}>
                                     <Text style={styles.text}>Name *</Text>
                                     <TextInput
                                         value={form.name}
-                                        onChangeText={(value) => updateForm('name', value)}
+                                        onChangeText={(value) =>
+                                            updateForm('name', value)
+                                        }
                                         placeholder="Action name"
-                                        placeholderTextColor={colors.textSecondary}
+                                        placeholderTextColor={
+                                            colors.textSecondary
+                                        }
                                         style={styles.input}
                                         maxLength={100}
                                         editable={!saving}
@@ -754,17 +863,24 @@ export default function ClassActions({
                                 </View>
 
                                 <View style={{ gap: 6 }}>
-                                    <Text style={styles.text}>Description</Text>
+                                    <Text style={styles.text}>
+                                        Description
+                                    </Text>
                                     <TextInput
                                         value={form.description}
                                         onChangeText={(value) =>
                                             updateForm('description', value)
                                         }
                                         placeholder="Describe the action"
-                                        placeholderTextColor={colors.textSecondary}
+                                        placeholderTextColor={
+                                            colors.textSecondary
+                                        }
                                         style={[
                                             styles.input,
-                                            { minHeight: 90, textAlignVertical: 'top' },
+                                            {
+                                                minHeight: 90,
+                                                textAlignVertical: 'top',
+                                            },
                                         ]}
                                         multiline
                                         editable={!saving}
@@ -772,7 +888,9 @@ export default function ClassActions({
                                 </View>
 
                                 <View style={{ gap: 8 }}>
-                                    <Text style={styles.text}>Resource cost</Text>
+                                    <Text style={styles.text}>
+                                        Resource cost
+                                    </Text>
 
                                     <View
                                         style={{
@@ -786,15 +904,23 @@ export default function ClassActions({
                                             form.resourceName === null,
                                             () => {
                                                 updateForm('resourceName', null);
-                                                updateForm('dynamicResourceCost', false);
+                                                updateForm(
+                                                    'dynamicResourceCost',
+                                                    false,
+                                                );
                                             },
                                         )}
 
                                         {character.resources.map((resource) =>
                                             renderChoice(
                                                 resource.name,
-                                                form.resourceName === resource.name,
-                                                () => updateForm('resourceName', resource.name),
+                                                form.resourceName ===
+                                                resource.name,
+                                                () =>
+                                                    updateForm(
+                                                        'resourceName',
+                                                        resource.name,
+                                                    ),
                                             ),
                                         )}
                                     </View>
@@ -822,9 +948,10 @@ export default function ClassActions({
                                                     borderRadius: 5,
                                                     borderWidth: 1,
                                                     borderColor: colors.border,
-                                                    backgroundColor: form.dynamicResourceCost
-                                                        ? colors.accent
-                                                        : colors.background,
+                                                    backgroundColor:
+                                                        form.dynamicResourceCost
+                                                            ? colors.accent
+                                                            : colors.background,
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                 }}
@@ -832,9 +959,10 @@ export default function ClassActions({
                                                 {form.dynamicResourceCost && (
                                                     <Text
                                                         style={{
-                                                            color: scheme === 'dark'
-                                                                ? '#11100F'
-                                                                : '#FFFFFF',
+                                                            color:
+                                                                scheme === 'dark'
+                                                                    ? '#11100F'
+                                                                    : '#FFFFFF',
                                                             fontWeight: '700',
                                                         }}
                                                     >
@@ -843,12 +971,17 @@ export default function ClassActions({
                                                 )}
                                             </View>
 
-                                            <View style={{ flex: 1, gap: 2 }}>
+                                            <View
+                                                style={{ flex: 1, gap: 2 }}
+                                            >
                                                 <Text style={styles.text}>
                                                     Ask amount when used
                                                 </Text>
-                                                <Text style={styles.secondary}>
-                                                    Choose how much resource to spend each time.
+                                                <Text
+                                                    style={styles.secondary}
+                                                >
+                                                    Choose how much resource to
+                                                    spend each time.
                                                 </Text>
                                             </View>
                                         </Pressable>
@@ -861,12 +994,17 @@ export default function ClassActions({
                                                 onChangeText={(value) =>
                                                     updateForm(
                                                         'resourceCost',
-                                                        value.replace(/[^0-9]/g, ''),
+                                                        value.replace(
+                                                            /[^0-9]/g,
+                                                            '',
+                                                        ),
                                                     )
                                                 }
                                                 keyboardType="number-pad"
                                                 placeholder="Resource cost"
-                                                placeholderTextColor={colors.textSecondary}
+                                                placeholderTextColor={
+                                                    colors.textSecondary
+                                                }
                                                 style={styles.input}
                                                 editable={!saving}
                                             />
@@ -879,7 +1017,8 @@ export default function ClassActions({
                                         onPress={() =>
                                             setForm((previous) => ({
                                                 ...previous,
-                                                limitedUses: !previous.limitedUses,
+                                                limitedUses:
+                                                    !previous.limitedUses,
                                             }))
                                         }
                                         style={{
@@ -895,9 +1034,10 @@ export default function ClassActions({
                                                 borderRadius: 5,
                                                 borderWidth: 1,
                                                 borderColor: colors.border,
-                                                backgroundColor: form.limitedUses
-                                                    ? colors.accent
-                                                    : colors.background,
+                                                backgroundColor:
+                                                    form.limitedUses
+                                                        ? colors.accent
+                                                        : colors.background,
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
                                             }}
@@ -905,7 +1045,10 @@ export default function ClassActions({
                                             {form.limitedUses && (
                                                 <Text
                                                     style={{
-                                                        color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
+                                                        color:
+                                                            scheme === 'dark'
+                                                                ? '#11100F'
+                                                                : '#FFFFFF',
                                                         fontWeight: '700',
                                                     }}
                                                 >
@@ -914,44 +1057,62 @@ export default function ClassActions({
                                             )}
                                         </View>
 
-                                        <Text style={styles.text}>Limited uses</Text>
+                                        <Text style={styles.text}>
+                                            Limited uses
+                                        </Text>
                                     </Pressable>
 
                                     {form.limitedUses && (
                                         <>
-                                            <Text style={styles.text}>Maximum uses</Text>
+                                            <Text style={styles.text}>
+                                                Maximum uses
+                                            </Text>
                                             <TextInput
                                                 value={form.maximumUses}
                                                 onChangeText={(value) =>
                                                     updateForm(
                                                         'maximumUses',
-                                                        value.replace(/[^0-9]/g, ''),
+                                                        value.replace(
+                                                            /[^0-9]/g,
+                                                            '',
+                                                        ),
                                                     )
                                                 }
                                                 keyboardType="number-pad"
                                                 placeholder="Maximum uses"
-                                                placeholderTextColor={colors.textSecondary}
+                                                placeholderTextColor={
+                                                    colors.textSecondary
+                                                }
                                                 style={styles.input}
                                                 editable={!saving}
                                             />
 
-                                            <Text style={styles.text}>Current uses</Text>
+                                            <Text style={styles.text}>
+                                                Current uses
+                                            </Text>
                                             <TextInput
                                                 value={form.currentUses}
                                                 onChangeText={(value) =>
                                                     updateForm(
                                                         'currentUses',
-                                                        value.replace(/[^0-9]/g, ''),
+                                                        value.replace(
+                                                            /[^0-9]/g,
+                                                            '',
+                                                        ),
                                                     )
                                                 }
                                                 keyboardType="number-pad"
                                                 placeholder="Current uses"
-                                                placeholderTextColor={colors.textSecondary}
+                                                placeholderTextColor={
+                                                    colors.textSecondary
+                                                }
                                                 style={styles.input}
                                                 editable={!saving}
                                             />
 
-                                            <Text style={styles.text}>Recovery</Text>
+                                            <Text style={styles.text}>
+                                                Recovery
+                                            </Text>
                                             <View
                                                 style={{
                                                     flexDirection: 'row',
@@ -959,12 +1120,18 @@ export default function ClassActions({
                                                     gap: 8,
                                                 }}
                                             >
-                                                {RECOVERY_OPTIONS.map((option) =>
-                                                    renderChoice(
-                                                        option.label,
-                                                        form.recovery === option.value,
-                                                        () => updateForm('recovery', option.value),
-                                                    ),
+                                                {RECOVERY_OPTIONS.map(
+                                                    (option) =>
+                                                        renderChoice(
+                                                            option.label,
+                                                            form.recovery ===
+                                                            option.value,
+                                                            () =>
+                                                                updateForm(
+                                                                    'recovery',
+                                                                    option.value,
+                                                                ),
+                                                        ),
                                                 )}
                                             </View>
                                         </>
@@ -980,11 +1147,12 @@ export default function ClassActions({
                                     }}
                                 >
                                     <Pressable
-                                        onPress={() => setModalVisible(false)}
+                                        onPress={closeActionModal}
                                         disabled={saving}
                                         style={{
                                             ...styles.button,
-                                            backgroundColor: colors.background,
+                                            backgroundColor:
+                                                colors.background,
                                             borderWidth: 1,
                                             borderColor: colors.border,
                                             opacity: saving ? 0.5 : 1,
@@ -1005,16 +1173,25 @@ export default function ClassActions({
                                         disabled={saving}
                                         style={[
                                             styles.button,
-                                            { opacity: saving ? 0.5 : 1 },
+                                            {
+                                                opacity: saving ? 0.5 : 1,
+                                            },
                                         ]}
                                     >
                                         <Text
                                             style={{
                                                 ...styles.buttonText,
-                                                color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
+                                                color:
+                                                    scheme === 'dark'
+                                                        ? '#11100F'
+                                                        : '#FFFFFF',
                                             }}
                                         >
-                                            {saving ? 'Saving...' : 'Save Action'}
+                                            {saving
+                                                ? 'Saving...'
+                                                : editingActionIndex !== null
+                                                    ? 'Save Changes'
+                                                    : 'Save Action'}
                                         </Text>
                                     </Pressable>
                                 </View>
@@ -1056,7 +1233,9 @@ export default function ClassActions({
                                 borderColor: colors.border,
                             }}
                         >
-                            <Text style={styles.title}>Use Class Action</Text>
+                            <Text style={styles.title}>
+                                Use Class Action
+                            </Text>
 
                             <Text style={styles.text}>
                                 {selectedAction?.name ?? ''}
@@ -1070,12 +1249,16 @@ export default function ClassActions({
                                     : 'Resource unavailable'}
                             </Text>
 
-                            <Text style={styles.text}>Amount to spend</Text>
+                            <Text style={styles.text}>
+                                Amount to spend
+                            </Text>
 
                             <TextInput
                                 value={useAmount}
                                 onChangeText={(value) =>
-                                    setUseAmount(value.replace(/[^0-9]/g, ''))
+                                    setUseAmount(
+                                        value.replace(/[^0-9]/g, ''),
+                                    )
                                 }
                                 keyboardType="number-pad"
                                 placeholder="Enter amount"
@@ -1118,16 +1301,23 @@ export default function ClassActions({
 
                                 <Pressable
                                     disabled={saving}
-                                    onPress={() => void confirmDynamicUse()}
+                                    onPress={() =>
+                                        void confirmDynamicUse()
+                                    }
                                     style={[
                                         styles.button,
-                                        { opacity: saving ? 0.5 : 1 },
+                                        {
+                                            opacity: saving ? 0.5 : 1,
+                                        },
                                     ]}
                                 >
                                     <Text
                                         style={{
                                             ...styles.buttonText,
-                                            color: scheme === 'dark' ? '#11100F' : '#FFFFFF',
+                                            color:
+                                                scheme === 'dark'
+                                                    ? '#11100F'
+                                                    : '#FFFFFF',
                                         }}
                                     >
                                         {saving ? 'Using...' : 'Confirm'}
@@ -1137,7 +1327,7 @@ export default function ClassActions({
                         </View>
                     </View>
                 </Modal>
-            </View >
-        </BlurView >
+            </View>
+        </BlurView>
     );
 }
