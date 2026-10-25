@@ -112,6 +112,149 @@ export default function CharactersScreen() {
         }
     }
 
+    async function exportAllCharacters() {
+        if (busy) return;
+
+        if (characters.length === 0) {
+            showInfo('Nothing to export', 'You have no characters to export.');
+            return;
+        }
+
+        setBusy(true);
+
+        try {
+            const exportedCharacters = await Promise.all(
+                characters.map(async ({ character }) => {
+                    const data = JSON.parse(characterToJSON(character));
+
+                    if (character.portraitPath) {
+                        try {
+                            let base64 = '';
+                            let extension = 'jpg';
+
+                            if (Platform.OS === 'web') {
+                                const response = await fetch(character.portraitPath);
+
+                                if (response.ok) {
+                                    const blob = await response.blob();
+
+                                    base64 = await new Promise<string>((resolve, reject) => {
+                                        const reader = new FileReader();
+
+                                        reader.onloadend = () => {
+                                            if (typeof reader.result === 'string') {
+                                                resolve(reader.result.split(',')[1] ?? '');
+                                            } else {
+                                                reject(new Error('Could not read portrait.'));
+                                            }
+                                        };
+
+                                        reader.onerror = () =>
+                                            reject(new Error('Could not read portrait.'));
+
+                                        reader.readAsDataURL(blob);
+                                    });
+
+                                    extension =
+                                        blob.type === 'image/png' ? 'png' :
+                                            blob.type === 'image/webp' ? 'webp' : 'jpg';
+                                }
+                            } else {
+                                const info = await FileSystem.getInfoAsync(
+                                    character.portraitPath,
+                                );
+
+                                if (info.exists) {
+                                    base64 = await FileSystem.readAsStringAsync(
+                                        character.portraitPath,
+                                        { encoding: FileSystem.EncodingType.Base64 },
+                                    );
+
+                                    const ext = character.portraitPath
+                                        .split('.')
+                                        .pop()
+                                        ?.toLowerCase();
+
+                                    extension = ['jpg', 'jpeg', 'png', 'webp'].includes(
+                                        ext ?? '',
+                                    ) ? ext! : 'jpg';
+                                }
+                            }
+
+                            if (base64) {
+                                data.portraitData = { base64, extension };
+                            }
+                        } catch (error) {
+                            console.warn(
+                                `Could not export portrait for ${character.name}:`,
+                                error,
+                            );
+                        }
+                    }
+
+                    return data;
+                }),
+            );
+
+            const bundle = {
+                format: 'realms-character-bundle',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                characters: exportedCharacters,
+            };
+
+            const json = JSON.stringify(bundle, null, 2);
+            const filename = 'realms-characters-backup.json';
+
+            if (Platform.OS === 'web') {
+                const blob = new Blob([json], {
+                    type: 'application/json;charset=utf-8',
+                });
+
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Delay revocation to allow the browser to start the download.
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                showInfo(
+                    'Export complete',
+                    `Exported ${exportedCharacters.length} characters.`,
+                );
+            } else {
+                if (!(await Sharing.isAvailableAsync())) {
+                    showInfo('Sharing unavailable', 'Sharing is unavailable on this device.');
+                    return;
+                }
+
+                const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+
+                await FileSystem.writeAsStringAsync(fileUri, json, {
+                    encoding: FileSystem.EncodingType.UTF8,
+                });
+
+                await Sharing.shareAsync(fileUri, {
+                    mimeType: 'application/json',
+                    dialogTitle: 'Export all Realms characters',
+                    UTI: 'public.json',
+                });
+            }
+        } catch (error) {
+            showInfo(
+                'Export failed',
+                error instanceof Error ? error.message : 'Could not export characters.',
+            );
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function exportCharacter(character: Character) {
         if (busy) return;
         setBusy(true);
@@ -225,6 +368,159 @@ export default function CharactersScreen() {
             showInfo(
                 'Export failed',
                 err instanceof Error ? err.message : 'The character could not be exported.'
+            );
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function importAllCharacters() {
+        if (busy) return;
+
+        setBusy(true);
+
+        try {
+            let json: string;
+
+            if (Platform.OS === 'web') {
+                const file = await new Promise<File | null>((resolve) => {
+                    const input = document.createElement('input');
+
+                    input.type = 'file';
+                    input.accept = '.json,application/json';
+
+                    input.onchange = () => resolve(input.files?.[0] ?? null);
+                    input.oncancel = () => resolve(null);
+
+                    input.click();
+                });
+
+                if (!file) return;
+
+                json = await file.text();
+            } else {
+                const result = await File.pickFileAsync({
+                    mimeTypes: ['application/json', 'text/json'],
+                });
+
+                if (result.canceled) return;
+
+                json = await result.result.text();
+            }
+
+            const parsed = JSON.parse(json);
+
+            // Accept either a bundle or a single-character export.
+            const records: unknown[] =
+                parsed?.format === 'realms-character-bundle' &&
+                    Array.isArray(parsed.characters)
+                    ? parsed.characters
+                    : [parsed];
+
+            if (records.length === 0) {
+                showInfo('Nothing to import', 'The selected backup contains no characters.');
+                return;
+            }
+
+            let importedCount = 0;
+            const failures: string[] = [];
+
+            for (let index = 0; index < records.length; index++) {
+                try {
+                    const data = records[index] as Record<string, any>;
+
+                    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                        throw new Error('Invalid character data.');
+                    }
+
+                    const portraitData = data.portraitData;
+                    delete data.portraitData;
+
+                    // Never reuse the source device's portrait path or character ID.
+                    data.portraitPath = '';
+
+                    const character = characterFromJSON(JSON.stringify(data));
+
+                    if (!character || typeof character !== 'object') {
+                        throw new Error('Invalid character data.');
+                    }
+
+                    if (!character.name?.trim()) {
+                        throw new Error('Character name is missing.');
+                    }
+
+                    const id = Crypto.randomUUID();
+                    character.id = id;
+
+                    if (portraitData?.base64) {
+                        const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+                        const candidate = String(
+                            portraitData.extension ?? 'jpg',
+                        ).toLowerCase();
+
+                        const extension = allowedExtensions.includes(candidate)
+                            ? candidate
+                            : 'jpg';
+
+                        if (Platform.OS === 'web') {
+                            const mimeType =
+                                extension === 'png' ? 'image/png' :
+                                    extension === 'webp' ? 'image/webp' : 'image/jpeg';
+
+                            character.portraitPath =
+                                `data:${mimeType};base64,${portraitData.base64}`;
+                        } else {
+                            const directory =
+                                `${FileSystem.documentDirectory}portraits/`;
+
+                            await FileSystem.makeDirectoryAsync(directory, {
+                                intermediates: true,
+                            });
+
+                            const portraitUri = `${directory}${id}.${extension}`;
+
+                            await FileSystem.writeAsStringAsync(
+                                portraitUri,
+                                portraitData.base64,
+                                { encoding: FileSystem.EncodingType.Base64 },
+                            );
+
+                            character.portraitPath = portraitUri;
+                        }
+                    }
+
+                    await saveCharacter(character, id);
+                    importedCount++;
+                } catch (error) {
+                    failures.push(
+                        `Character ${index + 1}: ${error instanceof Error ? error.message : 'Import failed'
+                        }`,
+                    );
+                }
+            }
+
+            await refreshCharacters();
+
+            if (failures.length === 0) {
+                showInfo(
+                    'Import complete',
+                    `Successfully imported ${importedCount} character${importedCount === 1 ? '' : 's'
+                    }. Existing characters were not overwritten.`,
+                );
+            } else {
+                showInfo(
+                    'Import partially complete',
+                    `Imported ${importedCount} of ${records.length} characters.\n\n` +
+                    failures.slice(0, 5).join('\n') +
+                    (failures.length > 5
+                        ? `\n…and ${failures.length - 5} more errors.`
+                        : ''),
+                );
+            }
+        } catch (error) {
+            showInfo(
+                'Import failed',
+                error instanceof Error ? error.message : 'Could not read the backup file.',
             );
         } finally {
             setBusy(false);
@@ -518,6 +814,9 @@ export default function CharactersScreen() {
                     </Text>
                 </Pressable>
 
+            </View>
+
+            <View style={styles.toolbar}>
                 <Pressable
                     onPress={importCharacter}
                     disabled={busy}
@@ -532,6 +831,40 @@ export default function CharactersScreen() {
                 >
                     <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
                         {busy ? 'Working...' : 'Import JSON'}
+                    </Text>
+                </Pressable>
+                
+                <Pressable
+                    onPress={() => void importAllCharacters()}
+                    disabled={busy}
+                    style={[
+                        styles.secondaryButton,
+                        {
+                            backgroundColor: colors.backgroundElement,
+                            borderColor: colors.border,
+                        },
+                        busy && styles.disabled,
+                    ]}
+                >
+                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
+                        Import All
+                    </Text>
+                </Pressable>
+
+                <Pressable
+                    onPress={() => void exportAllCharacters()}
+                    disabled={busy || loading || characters.length === 0}
+                    style={[
+                        styles.secondaryButton,
+                        {
+                            backgroundColor: colors.backgroundElement,
+                            borderColor: colors.border,
+                        },
+                        (busy || loading || characters.length === 0) && styles.disabled,
+                    ]}
+                >
+                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
+                        Export All
                     </Text>
                 </Pressable>
             </View>
@@ -566,7 +899,7 @@ export default function CharactersScreen() {
                             onPress={() => void refreshCharacters()}
                             style={[styles.primaryButton, { backgroundColor: colors.accent }]}
                         >
-                            <Text style={styles.primaryButtonText}>Retry</Text>
+                            <Text style={styles.Text}>Retry</Text>
                         </Pressable>
                     </View>
                 ) : characters.length === 0 ? (
@@ -795,7 +1128,6 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.four,
     },
     primaryButton: {
-        flex: 1,
         borderRadius: 10,
         paddingVertical: 13,
         paddingHorizontal: 12,
@@ -815,6 +1147,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         alignItems: 'center',
         justifyContent: 'center',
+        flex: 1
     },
     secondaryButtonText: {
         fontSize: 14,

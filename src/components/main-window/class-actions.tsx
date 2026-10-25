@@ -827,6 +827,7 @@ export default function ClassActions({
                                 width: '100%',
                                 maxWidth: 600,
                                 alignSelf: 'center',
+                                minWidth: 300,
                             }}
                         >
                             <View

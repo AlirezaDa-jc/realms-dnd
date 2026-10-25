@@ -121,12 +121,11 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   tabListContainer: {
-    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     alignItems: 'center',
-    padding: Spacing.three,
+    padding: Spacing.two,
   },
   tabList: {
     width: '100%',
