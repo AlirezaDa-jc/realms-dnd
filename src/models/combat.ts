@@ -1,5 +1,4 @@
 import * as Crypto from 'expo-crypto';
-import { Character } from '@/models/character';
 
 export type CombatStatus = 'active' | 'finished';
 
@@ -13,66 +12,10 @@ export type CombatOutcome =
 
 export type CombatTeam = 'team1' | 'team2';
 
-export type CombatEventType =
-    | 'combat_started'
-    | 'combat_finished'
-    | 'character_joined'
-    | 'character_left'
-    | 'damage'
-    | 'healing'
-    | 'resource_used'
-    | 'resource_restored'
-    | 'action'
-    | 'condition_added'
-    | 'condition_removed'
-    | 'equipment_changed'
-    | 'character_updated'
-    | 'other';
-
-/**
- * A complete copy of a character at a particular moment.
- *
- * The character contains all its data, not just its ID.
- * characterId links the snapshot back to the live character.
- */
-export type CombatantSnapshot = {
+export type CombatantRef = {
     characterId: string;
-    character: Character;
 };
 
-/**
- * One point in the battle timeline.
- *
- * Every entry preserves the full state of both teams
- * after the corresponding event.
- */
-export type CombatHistoryEntry = {
-    id: string;
-    timestamp: string;
-
-    type: CombatEventType;
-    description: string;
-
-    characterId: string | null;
-    characterName: string | null;
-    team: CombatTeam | null;
-
-    /**
-     * Optional numeric value, e.g. damage or healing amount.
-     */
-    amount: number | null;
-
-    /**
-     * Full state of both teams at this moment.
-     */
-    team1: CombatantSnapshot[];
-    team2: CombatantSnapshot[];
-};
-
-/**
- * A complete encounter, including its current state
- * and historical checkpoints.
- */
 export type CombatData = {
     id: string;
     name: string;
@@ -80,10 +23,8 @@ export type CombatData = {
     status: CombatStatus;
     outcome: CombatOutcome | null;
 
-    team1: CombatantSnapshot[];
-    team2: CombatantSnapshot[];
-
-    history: CombatHistoryEntry[];
+    team1: CombatantRef[];
+    team2: CombatantRef[];
 
     createdAt: string;
     startedAt: string;
@@ -97,10 +38,8 @@ export class Combat implements CombatData {
     status: CombatStatus;
     outcome: CombatOutcome | null;
 
-    team1: CombatantSnapshot[];
-    team2: CombatantSnapshot[];
-
-    history: CombatHistoryEntry[];
+    team1: CombatantRef[];
+    team2: CombatantRef[];
 
     createdAt: string;
     startedAt: string;
@@ -117,8 +56,6 @@ export class Combat implements CombatData {
 
         this.team1 = data.team1 ?? [];
         this.team2 = data.team2 ?? [];
-
-        this.history = data.history ?? [];
 
         this.createdAt = data.createdAt ?? now;
         this.startedAt = data.startedAt ?? now;

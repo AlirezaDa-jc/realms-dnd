@@ -1,10 +1,8 @@
 import {
     Combat,
     type CombatData,
-    type CombatHistoryEntry,
-    type CombatantSnapshot,
+    type CombatantRef,
 } from '@/models/combat';
-import { characterFromJSON, characterToJSON } from './character-serializer';
 import { getDatabase } from './database';
 
 export type CombatSummary = {
@@ -16,92 +14,74 @@ export type CombatSummary = {
     updated_at: string;
 };
 
-type StoredSnapshot = Omit<CombatantSnapshot, 'character'> & {
-    character: Record<string, unknown>;
+type LegacyCombatData = {
+    id?: string;
+    name?: string;
+    status?: 'active' | 'finished';
+    outcome?: CombatData['outcome'];
+    team1?: Array<{ characterId?: string }>;
+    team2?: Array<{ characterId?: string }>;
+    createdAt?: string;
+    startedAt?: string;
+    finishedAt?: string | null;
+
+    // Ignored when migrating old records.
+    history?: unknown[];
 };
 
-type StoredHistoryEntry = Omit<
-    CombatHistoryEntry,
-    'team1' | 'team2'
-> & {
-    team1: StoredSnapshot[];
-    team2: StoredSnapshot[];
-};
+function deserializeCombat(json: string): Combat {
+    const stored = JSON.parse(json) as LegacyCombatData;
 
-type StoredCombat = Omit<
-    CombatData,
-    'team1' | 'team2' | 'history'
-> & {
-    team1: StoredSnapshot[];
-    team2: StoredSnapshot[];
-    history: StoredHistoryEntry[];
-};
+    const toRefs = (
+        team: LegacyCombatData['team1'],
+    ): CombatantRef[] =>
+        (team ?? [])
+            .filter(
+                (
+                    entry,
+                ): entry is { characterId: string } =>
+                    typeof entry?.characterId === 'string',
+            )
+            .map(({ characterId }) => ({ characterId }));
 
-function serializeSnapshots(
-    snapshots: CombatantSnapshot[],
-): StoredSnapshot[] {
-    return snapshots.map(({ characterId, character }) => ({
-        characterId,
-        character: JSON.parse(
-            characterToJSON(character),
-        ) as Record<string, unknown>,
-    }));
-}
-
-function deserializeSnapshots(
-    snapshots: StoredSnapshot[],
-): CombatantSnapshot[] {
-    return snapshots.map(({ characterId, character }) => ({
-        characterId,
-        character: characterFromJSON(JSON.stringify(character)),
-    }));
-}
-
-function serializeHistoryEntry(
-    entry: CombatHistoryEntry,
-): StoredHistoryEntry {
-    return {
-        ...entry,
-        team1: serializeSnapshots(entry.team1),
-        team2: serializeSnapshots(entry.team2),
-    };
-}
-
-function deserializeHistoryEntry(
-    entry: StoredHistoryEntry,
-): CombatHistoryEntry {
-    return {
-        ...entry,
-        team1: deserializeSnapshots(entry.team1),
-        team2: deserializeSnapshots(entry.team2),
-    };
+    return new Combat({
+        id: stored.id,
+        name: stored.name,
+        status: stored.status,
+        outcome: stored.outcome,
+        team1: toRefs(stored.team1),
+        team2: toRefs(stored.team2),
+        createdAt: stored.createdAt,
+        startedAt: stored.startedAt,
+        finishedAt: stored.finishedAt,
+    });
 }
 
 function serializeCombat(combat: Combat): string {
-    const stored: StoredCombat = {
-        ...combat,
-        team1: serializeSnapshots(combat.team1),
-        team2: serializeSnapshots(combat.team2),
-        history: combat.history.map(serializeHistoryEntry),
+    // Explicitly serialize only the encounter fields.
+    // No character copies and no history.
+    const stored: CombatData = {
+        id: combat.id,
+        name: combat.name,
+        status: combat.status,
+        outcome: combat.outcome,
+        team1: combat.team1.map(({ characterId }) => ({
+            characterId,
+        })),
+        team2: combat.team2.map(({ characterId }) => ({
+            characterId,
+        })),
+        createdAt: combat.createdAt,
+        startedAt: combat.startedAt,
+        finishedAt: combat.finishedAt,
     };
 
     return JSON.stringify(stored);
 }
 
-function deserializeCombat(json: string): Combat {
-    const stored = JSON.parse(json) as StoredCombat;
-
-    return new Combat({
-        ...stored,
-        team1: deserializeSnapshots(stored.team1),
-        team2: deserializeSnapshots(stored.team2),
-        history: stored.history.map(deserializeHistoryEntry),
-    });
-}
-
 /**
  * Insert a new combat or update an existing one.
- * The complete encounter and its full timeline are persisted.
+ * Only encounter metadata and team character IDs are persisted.
  */
 export async function saveCombat(
     combat: Combat,
@@ -134,8 +114,8 @@ export async function saveCombat(
 }
 
 /**
- * Load a combat and rehydrate every character snapshot
- * into a Character instance.
+ * Load encounter metadata and team membership.
+ * Character records must be loaded separately from the character repository.
  */
 export async function loadCombat(
     combatId: string,
@@ -178,7 +158,7 @@ export async function listCombats(): Promise<CombatSummary[]> {
 }
 
 /**
- * Delete a combat record and its saved history.
+ * Delete a combat record.
  * This does not delete or modify any character records.
  */
 export async function deleteCombat(

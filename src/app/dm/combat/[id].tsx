@@ -1,6 +1,6 @@
-
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
     ActivityIndicator,
     Image,
@@ -28,9 +28,16 @@ import {
     saveCombat,
 } from '@/database/combat-repository';
 import type { Character } from '@/models/character';
-import { Combat, type CombatData, type CombatEventType, type CombatOutcome, type CombatTeam, type CombatantSnapshot } from '@/models/combat';
-import { SpellSlot } from '@/models/spell-slot';
-import { CharacterResource } from '@/models/resource';
+import {
+    Combat,
+    type CombatantRef,
+    type CombatOutcome,
+    type CombatTeam,
+} from '@/models/combat';
+
+type LoadedCombatant = CombatantRef & {
+    character: Character;
+};
 
 type HpAction = 'damage' | 'heal' | 'temporary';
 
@@ -54,6 +61,23 @@ const OUTCOMES: { value: CombatOutcome; label: string }[] = [
     { value: 'incomplete', label: 'Incomplete / stopped' },
 ];
 
+/**
+ * Combat stores only character IDs.
+ *
+ * Always hydrate characters from the character repository so their
+ * latest saved state is displayed.
+ */
+async function loadCombatants(
+    refs: CombatantRef[],
+): Promise<LoadedCombatant[]> {
+    return Promise.all(
+        refs.map(async ({ characterId }) => ({
+            characterId,
+            character: await loadCharacter(characterId),
+        })),
+    );
+}
+
 export default function CombatScreen() {
     const scheme = useColorScheme();
     const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
@@ -64,6 +88,9 @@ export default function CombatScreen() {
     const combatId = Array.isArray(params.id) ? params.id[0] : params.id;
 
     const [combat, setCombat] = useState<Combat | null>(null);
+    const [team1, setTeam1] = useState<LoadedCombatant[]>([]);
+    const [team2, setTeam2] = useState<LoadedCombatant[]>([]);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -81,6 +108,10 @@ export default function CombatScreen() {
 
     const readOnly = combat?.status === 'finished';
 
+    /*
+     * Reload the encounter and both teams whenever this screen receives focus.
+     * Character state is never read from the Combat record.
+     */
     const loadCurrentCombat = useCallback(async () => {
         if (!combatId) {
             setError('No combat ID was provided.');
@@ -92,11 +123,21 @@ export default function CombatScreen() {
         setError(null);
 
         try {
-            const loaded = await loadCombat(combatId);
-            setCombat(loaded);
+            const loadedCombat = await loadCombat(combatId);
+
+            const [loadedTeam1, loadedTeam2] = await Promise.all([
+                loadCombatants(loadedCombat.team1),
+                loadCombatants(loadedCombat.team2),
+            ]);
+
+            setCombat(loadedCombat);
+            setTeam1(loadedTeam1);
+            setTeam2(loadedTeam2);
         } catch (err) {
             setError(
-                err instanceof Error ? err.message : 'Could not load combat.',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not load combat.',
             );
         } finally {
             setLoading(false);
@@ -121,6 +162,7 @@ export default function CombatScreen() {
                 const name = subClass
                     ? `${subClass} ${characterClass}`
                     : characterClass;
+
                 return `${name} ${level}`;
             })
             .join(' / ');
@@ -151,182 +193,35 @@ export default function CombatScreen() {
         ),
     ];
 
-    /*
-     * Keep the Character prototype and model methods while creating an
-     * independent copy of the mutable combat-related state.
+    /**
+     * Update only the UI copy of the affected character.
+     * The character has already been saved to the character repository.
      */
-    const cloneCharacter = (character: Character): Character => {
-        const cloned = Object.assign(
-            Object.create(Object.getPrototypeOf(character)),
-            character,
-        ) as Character;
+    const updateLoadedCharacter = (
+        characterId: string,
+        character: Character,
+        team: CombatTeam,
+    ) => {
+        const updateTeam = (
+            combatants: LoadedCombatant[],
+        ): LoadedCombatant[] =>
+            combatants.map((combatant) =>
+                combatant.characterId === characterId
+                    ? { characterId, character }
+                    : combatant,
+            );
 
-        cloned.spellSlots = Object.fromEntries(
-            Object.entries(character.spellSlots ?? {}).map(
-                ([level, slot]) => [
-                    level,
-                    new SpellSlot(slot.level, slot.maximum, slot.current),
-                ],
-            ),
-        );
-
-        cloned.resources = (character.resources ?? []).map(
-            (resource) =>
-                new CharacterResource(
-                    resource.name,
-                    resource.maximum,
-                    resource.current,
-                    resource.recovery,
-                ),
-        );
-
-        cloned.classActions = (character.classActions ?? []).map((action) =>
-            Object.assign(
-                Object.create(Object.getPrototypeOf(action)),
-                action,
-            ),
-        );
-
-        cloned.logs = [...(character.logs ?? [])];
-
-        // Copy arrays so historical snapshots don't share mutable arrays.
-        const arrays: Record<string, unknown> = {};
-
-        for (const [key, value] of Object.entries(character)) {
-            if (
-                Array.isArray(value) &&
-                !['spellSlots', 'resources', 'classActions', 'logs'].includes(key)
-            ) {
-                arrays[key] = value.map((item) =>
-                    item && typeof item === 'object' ? { ...item } : item,
-                );
-            }
+        if (team === 'team1') {
+            setTeam1((current) => updateTeam(current));
+        } else {
+            setTeam2((current) => updateTeam(current));
         }
-
-        Object.assign(cloned, arrays);
-        return cloned;
     };
 
-    const cloneSnapshot = (
-        snapshot: CombatantSnapshot,
-    ): CombatantSnapshot => ({
-        characterId: snapshot.characterId,
-        character: cloneCharacter(snapshot.character),
-    });
-
-    const cloneTeam = (team: CombatantSnapshot[]) =>
-        team.map(cloneSnapshot);
-
-    /*
-     * Every event gets a checkpoint of both teams AFTER the event.
-     * Older history entries are never updated in place.
+    /**
+     * Apply damage, healing, or temporary HP.
+     * No combat history is written.
      */
-    const persistEvent = async ({
-        team1,
-        team2,
-        type,
-        description,
-        characterId = null,
-        characterName = null,
-        team = null,
-        amount = null,
-        nextStatus,
-        nextOutcome,
-        finishedAt,
-    }: {
-        team1: CombatantSnapshot[];
-        team2: CombatantSnapshot[];
-        type: CombatEventType;
-        description: string;
-        characterId?: string | null;
-        characterName?: string | null;
-        team?: CombatTeam | null;
-        amount?: number | null;
-        nextStatus?: 'active' | 'finished';
-        nextOutcome?: CombatOutcome | null;
-        finishedAt?: string | null;
-    }) => {
-        if (!combat) throw new Error('Combat is not loaded.');
-
-        const savedTeam1 = cloneTeam(team1);
-        const savedTeam2 = cloneTeam(team2);
-        const timestamp = new Date().toISOString();
-
-        const event = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            timestamp,
-            type,
-            description,
-            characterId,
-            characterName,
-            team,
-            amount,
-            team1: cloneTeam(savedTeam1),
-            team2: cloneTeam(savedTeam2),
-        };
-
-        const updatedCombat = new Combat({
-            ...combat,
-            team1: savedTeam1,
-            team2: savedTeam2,
-            history: [...combat.history, event],
-            status: nextStatus ?? combat.status,
-            outcome:
-                nextOutcome !== undefined ? nextOutcome : combat.outcome,
-            finishedAt:
-                finishedAt !== undefined ? finishedAt : combat.finishedAt,
-        });
-
-        await saveCombat(updatedCombat);
-        setCombat(updatedCombat);
-    };
-
-    const updateCombatant = async ({
-        characterId,
-        updatedCharacter,
-        type,
-        description,
-        amount = null,
-        team,
-    }: {
-        characterId: string;
-        updatedCharacter: Character;
-        type: CombatEventType;
-        description: string;
-        amount?: number | null;
-        team: CombatTeam;
-    }) => {
-        if (!combat) throw new Error('Combat is not loaded.');
-
-        const targetTeam =
-            team === 'team1' ? combat.team1 : combat.team2;
-
-        const updatedTeam = targetTeam.map((snapshot) =>
-            snapshot.characterId === characterId
-                ? {
-                    characterId,
-                    character: cloneCharacter(updatedCharacter),
-                }
-                : cloneSnapshot(snapshot),
-        );
-
-        const team1 =
-            team === 'team1' ? updatedTeam : cloneTeam(combat.team1);
-        const team2 =
-            team === 'team2' ? updatedTeam : cloneTeam(combat.team2);
-
-        await persistEvent({
-            team1,
-            team2,
-            type,
-            description,
-            characterId,
-            characterName: updatedCharacter.name || 'Unnamed Character',
-            team,
-            amount,
-        });
-    };
-
     const applyHpAction = async () => {
         if (!hpTarget || !hpAction || busy || readOnly) return;
 
@@ -337,42 +232,35 @@ export default function CombatScreen() {
             !Number.isInteger(amount) ||
             amount < 0
         ) {
-            showInfo('Invalid value', 'Enter a non-negative whole number.');
+            showInfo(
+                'Invalid value',
+                'Enter a non-negative whole number.',
+            );
             return;
         }
 
         setBusy(true);
 
         try {
-            const updatedCharacter = cloneCharacter(
-                await loadCharacter(hpTarget.characterId),
-            );
+            // Always load the latest saved character before changing it.
+            const character = await loadCharacter(hpTarget.characterId);
 
             if (hpAction === 'damage') {
-                updatedCharacter.takeDamage(amount);
+                character.takeDamage(amount);
             } else if (hpAction === 'heal') {
-                updatedCharacter.heal(amount);
+                character.heal(amount);
             } else {
-                updatedCharacter.setTemporaryHp(amount);
+                character.setTemporaryHp(amount);
             }
 
-            await saveCharacter(updatedCharacter, hpTarget.characterId);
+            // Persist character state independently of the combat record.
+            await saveCharacter(character, hpTarget.characterId);
 
-            const description =
-                hpAction === 'damage'
-                    ? `${hpTarget.characterName} took ${amount} damage.`
-                    : hpAction === 'heal'
-                        ? `${hpTarget.characterName} recovered ${amount} HP.`
-                        : `${hpTarget.characterName}'s temporary HP was set to ${amount}.`;
-
-            await updateCombatant({
-                characterId: hpTarget.characterId,
-                updatedCharacter,
-                type: hpAction === 'damage' ? 'damage' : 'healing',
-                description,
-                amount,
-                team: hpTarget.team,
-            });
+            updateLoadedCharacter(
+                hpTarget.characterId,
+                character,
+                hpTarget.team,
+            );
 
             setHpTarget(null);
             setHpAction(null);
@@ -380,7 +268,9 @@ export default function CombatScreen() {
         } catch (err) {
             showInfo(
                 'Update failed',
-                err instanceof Error ? err.message : 'Could not update HP.',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not update HP.',
             );
         } finally {
             setBusy(false);
@@ -388,25 +278,19 @@ export default function CombatScreen() {
     };
 
     const useSpellSlot = async (
-        snapshot: CombatantSnapshot,
+        combatant: LoadedCombatant,
         team: CombatTeam,
         level: number,
     ) => {
         if (busy || readOnly) return;
 
-        const liveSlot = snapshot.character.spellSlots?.[level];
-
-        if (!liveSlot || liveSlot.current <= 0) return;
-
         setBusy(true);
 
         try {
-            const character = cloneCharacter(
-                await loadCharacter(snapshot.characterId),
-            );
+            const character = await loadCharacter(combatant.characterId);
             const slot = character.getSpellSlots(level);
 
-            if (slot.current <= 0) {
+            if (!slot || slot.current <= 0) {
                 showInfo(
                     'No Spell Slots',
                     `No Level ${level} spell slots remain.`,
@@ -420,16 +304,13 @@ export default function CombatScreen() {
                 `Used one Level ${level} spell slot. Remaining: ${slot.current}/${slot.maximum}.`,
             );
 
-            await saveCharacter(character, snapshot.characterId);
+            await saveCharacter(character, combatant.characterId);
 
-            await updateCombatant({
-                characterId: snapshot.characterId,
-                updatedCharacter: character,
-                type: 'resource_used',
-                description: `${character.name} used one Level ${level} spell slot (${slot.current}/${slot.maximum} remaining).`,
-                amount: 1,
+            updateLoadedCharacter(
+                combatant.characterId,
+                character,
                 team,
-            });
+            );
         } catch (err) {
             showInfo(
                 'Could Not Use Spell Slot',
@@ -443,24 +324,16 @@ export default function CombatScreen() {
     };
 
     const useResource = async (
-        snapshot: CombatantSnapshot,
+        combatant: LoadedCombatant,
         team: CombatTeam,
         resourceName: string,
     ) => {
         if (busy || readOnly) return;
 
-        const original = snapshot.character.resources.find(
-            (resource) => resource.name === resourceName,
-        );
-
-        if (!original || original.current <= 0) return;
-
         setBusy(true);
 
         try {
-            const character = cloneCharacter(
-                await loadCharacter(snapshot.characterId),
-            );
+            const character = await loadCharacter(combatant.characterId);
             const resource = character.resources.find(
                 (item) => item.name === resourceName,
             );
@@ -479,16 +352,13 @@ export default function CombatScreen() {
                 `Used one use of ${resource.name}. Current: ${resource.current}/${resource.maximum}.`,
             );
 
-            await saveCharacter(character, snapshot.characterId);
+            await saveCharacter(character, combatant.characterId);
 
-            await updateCombatant({
-                characterId: snapshot.characterId,
-                updatedCharacter: character,
-                type: 'resource_used',
-                description: `${character.name} used ${resource.name} (${resource.current}/${resource.maximum} remaining).`,
-                amount: 1,
+            updateLoadedCharacter(
+                combatant.characterId,
+                character,
                 team,
-            });
+            );
         } catch (err) {
             showInfo(
                 'Cannot Use Resource',
@@ -502,15 +372,15 @@ export default function CombatScreen() {
     };
 
     const openHpAction = (
-        snapshot: CombatantSnapshot,
+        combatant: LoadedCombatant,
         team: CombatTeam,
         action: HpAction,
     ) => {
         if (readOnly || busy) return;
 
         setHpTarget({
-            characterId: snapshot.characterId,
-            characterName: snapshot.character.name || 'Character',
+            characterId: combatant.characterId,
+            characterName: combatant.character.name || 'Character',
             team,
         });
         setHpAction(action);
@@ -526,6 +396,7 @@ export default function CombatScreen() {
 
         try {
             const summaries = await listCharacters();
+
             const existingIds = new Set([
                 ...combat.team1.map((item) => item.characterId),
                 ...combat.team2.map((item) => item.characterId),
@@ -556,92 +427,63 @@ export default function CombatScreen() {
     const addCharacter = async (candidate: Candidate) => {
         if (!combat || busy || readOnly) return;
 
-        const alreadyAdded = [...combat.team1, ...combat.team2].some(
-            (item) => item.characterId === candidate.id,
-        );
+        const alreadyAdded = [
+            ...combat.team1,
+            ...combat.team2,
+        ].some((item) => item.characterId === candidate.id);
 
         if (alreadyAdded) {
-            showInfo('Already in Combat', 'This character is already assigned to a team.');
+            showInfo(
+                'Already in Combat',
+                'This character is already assigned to a team.',
+            );
             return;
         }
 
         setBusy(true);
 
         try {
-            const snapshot: CombatantSnapshot = {
+            // Reload in case the character changed while the modal was open.
+            const character = await loadCharacter(candidate.id);
+
+            const ref: CombatantRef = {
                 characterId: candidate.id,
-                character: cloneCharacter(candidate.character),
             };
 
-            const team1 =
-                addTeam === 'team1'
-                    ? [...cloneTeam(combat.team1), snapshot]
-                    : cloneTeam(combat.team1);
-
-            const team2 =
-                addTeam === 'team2'
-                    ? [...cloneTeam(combat.team2), snapshot]
-                    : cloneTeam(combat.team2);
-
-            await persistEvent({
-                team1,
-                team2,
-                type: 'other',
-                description: `${candidate.character.name || 'Character'} joined Team ${addTeam === 'team1' ? '1' : '2'}.`,
-                characterId: candidate.id,
-                characterName: candidate.character.name || 'Unnamed Character',
-                team: addTeam,
+            const updatedCombat = new Combat({
+                ...combat,
+                team1:
+                    addTeam === 'team1'
+                        ? [...combat.team1, ref]
+                        : combat.team1,
+                team2:
+                    addTeam === 'team2'
+                        ? [...combat.team2, ref]
+                        : combat.team2,
             });
+
+            await saveCombat(updatedCombat);
+
+            setCombat(updatedCombat);
+
+            const loadedCombatant: LoadedCombatant = {
+                characterId: candidate.id,
+                character,
+            };
+
+            if (addTeam === 'team1') {
+                setTeam1((current) => [...current, loadedCombatant]);
+            } else {
+                setTeam2((current) => [...current, loadedCombatant]);
+            }
 
             setAddVisible(false);
         } catch (err) {
             showInfo(
                 'Could Not Add Character',
-                err instanceof Error ? err.message : 'Could not add character.',
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const removeCharacter = async (
-        snapshot: CombatantSnapshot,
-        team: CombatTeam,
-    ) => {
-        if (!combat || busy || readOnly) return;
-
-        setBusy(true);
-
-        try {
-            const team1 =
-                team === 'team1'
-                    ? combat.team1.filter(
-                        (item) => item.characterId !== snapshot.characterId,
-                    )
-                    : cloneTeam(combat.team1);
-
-            const team2 =
-                team === 'team2'
-                    ? combat.team2.filter(
-                        (item) => item.characterId !== snapshot.characterId,
-                    )
-                    : cloneTeam(combat.team2);
-
-            await persistEvent({
-                team1,
-                team2,
-                type: 'other',
-                description: `${snapshot.character.name || 'Character'} left Team ${team === 'team1' ? '1' : '2'}.`,
-                characterId: snapshot.characterId,
-                characterName: snapshot.character.name || 'Unnamed Character',
-                team,
-            });
-        } catch (err) {
-            showInfo(
-                'Could Not Remove Character',
                 err instanceof Error
                     ? err.message
-                    : 'Could not remove character from combat.',
+                    : 'Could not add character.',
             );
         } finally {
             setBusy(false);
@@ -656,28 +498,22 @@ export default function CombatScreen() {
         try {
             const finished = new Combat({
                 ...combat,
-                team1: cloneTeam(combat.team1),
-                team2: cloneTeam(combat.team2),
-                history: [...combat.history],
+                team1: combat.team1,
+                team2: combat.team2,
             });
 
             finished.finish(outcome);
 
-            await persistEvent({
-                team1: finished.team1,
-                team2: finished.team2,
-                type: 'other',
-                description: `Combat finished: ${OUTCOMES.find((item) => item.value === outcome)?.label ?? outcome}.`,
-                nextStatus: 'finished',
-                nextOutcome: outcome,
-                finishedAt: finished.finishedAt,
-            });
+            await saveCombat(finished);
 
+            setCombat(finished);
             setFinishVisible(false);
         } catch (err) {
             showInfo(
                 'Could Not Finish Combat',
-                err instanceof Error ? err.message : 'Could not finish combat.',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not finish combat.',
             );
         } finally {
             setBusy(false);
@@ -693,7 +529,9 @@ export default function CombatScreen() {
         } catch (err) {
             showInfo(
                 'Could Not Open Character',
-                err instanceof Error ? err.message : 'Could not open character details.',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not open character details.',
             );
         }
     };
@@ -709,7 +547,9 @@ export default function CombatScreen() {
         } catch (err) {
             showInfo(
                 'Could Not Delete Combat',
-                err instanceof Error ? err.message : 'Could not delete combat.',
+                err instanceof Error
+                    ? err.message
+                    : 'Could not delete combat.',
             );
         } finally {
             setBusy(false);
@@ -719,9 +559,7 @@ export default function CombatScreen() {
     const buttonStyle = (primary = false) => [
         styles.button,
         {
-            backgroundColor: primary
-                ? colors.accent
-                : colors.background,
+            backgroundColor: primary ? colors.accent : colors.background,
             borderColor: colors.border,
             opacity: busy ? 0.55 : 1,
         },
@@ -729,7 +567,13 @@ export default function CombatScreen() {
 
     const buttonTextStyle = (primary = false) => [
         styles.buttonText,
-        { color: primary ? (scheme === 'dark' ? '#11100F' : '#FFFFFF') : colors.text },
+        {
+            color: primary
+                ? scheme === 'dark'
+                    ? '#11100F'
+                    : '#FFFFFF'
+                : colors.text,
+        },
     ];
 
     const renderButton = (
@@ -754,16 +598,22 @@ export default function CombatScreen() {
     const renderSection = (
         title: string,
         emptyText: string,
-        children: React.ReactNode,
+        children: ReactNode,
     ) => (
         <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {title}
             </Text>
+
             {children ? (
                 children
             ) : (
-                <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
+                <Text
+                    style={[
+                        styles.mutedSmall,
+                        { color: colors.textSecondary },
+                    ]}
+                >
                     {emptyText}
                 </Text>
             )}
@@ -771,18 +621,18 @@ export default function CombatScreen() {
     );
 
     const renderCharacterCard = (
-        snapshot: CombatantSnapshot,
+        combatant: LoadedCombatant,
         team: CombatTeam,
     ) => {
-        const character = snapshot.character;
+        const character = combatant.character;
         const slots = getSpellSlots(character);
         const resources = getResources(character);
         const defenses = getDefenses(character);
-        const feats = character.feats ?? [];
         const weapons = character.weapons ?? [];
+
         return (
             <View
-                key={snapshot.characterId}
+                key={combatant.characterId}
                 style={[
                     styles.characterCard,
                     {
@@ -802,7 +652,10 @@ export default function CombatScreen() {
                         <View
                             style={[
                                 styles.portraitPlaceholder,
-                                { backgroundColor: colors.backgroundSelected },
+                                {
+                                    backgroundColor:
+                                        colors.backgroundSelected,
+                                },
                             ]}
                         >
                             <Text
@@ -811,59 +664,47 @@ export default function CombatScreen() {
                                     { color: colors.textSecondary },
                                 ]}
                             >
-                                {(character.name || '?').charAt(0).toUpperCase()}
+                                {(character.name || '?')
+                                    .charAt(0)
+                                    .toUpperCase()}
                             </Text>
                         </View>
                     )}
 
                     <View style={styles.identityText}>
-                        <Text style={[styles.name, { color: colors.text }]}>
+                        <Text
+                            numberOfLines={2}
+                            style={[styles.name, { color: colors.text }]}
+                        >
                             {character.name || 'Unnamed Character'}
                         </Text>
-                        <Text style={[styles.classes, { color: colors.textSecondary }]}>
-                            {getClasses(character)}
-                        </Text>
-                        <Text style={[styles.species, { color: colors.textSecondary }]}>
-                            {character.species || 'Species not set'}
+
+                        <Text
+                            style={[
+                                styles.hpSummary,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
+                            HP {character.currentHp}/{character.maxHp}
+                            {' · '}Temp {character.temporaryHp}
+                            {' · '}AC {character.armorClass}
                         </Text>
                     </View>
                 </View>
 
-                <View style={styles.statsGrid}>
-                    {[
-                        { label: 'HP', value: `${character.currentHp}/${character.maxHp}` },
-                        { label: 'Temp HP', value: String(character.temporaryHp) },
-                        { label: 'AC', value: String(character.armorClass) },
-                        {
-                            label: 'Initiative',
-                            value: character.initiative >= 0
-                                ? `+${character.initiative}`
-                                : String(character.initiative),
-                        },
-                        { label: 'Speed', value: `${character.totalSpeed} ft.` },
-                    ].map((stat) => (
-                        <View
-                            key={stat.label}
-                            style={[styles.statCell, { backgroundColor: colors.background }]}
-                        >
-                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                                {stat.label}
-                            </Text>
-                            <Text
-                                numberOfLines={1}
-                                style={[styles.statValue, { color: colors.text }]}
-                            >
-                                {stat.value}
-                            </Text>
-                        </View>
-                    ))}
-                </View>
-
                 {!readOnly && (
-                    <View style={styles.actionColumn}>
-                        {renderButton('− Damage', () => openHpAction(snapshot, team, 'damage'))}
-                        {renderButton('+ Heal', () => openHpAction(snapshot, team, 'heal'), true)}
-                        {renderButton('Temp HP', () => openHpAction(snapshot, team, 'temporary'))}
+                    <View style={styles.hpActions}>
+                        {renderButton('Damage', () =>
+                            openHpAction(combatant, team, 'damage'),
+                        )}
+                        {renderButton('Set Temp', () =>
+                            openHpAction(combatant, team, 'temporary'),
+                        )}
+                        {renderButton(
+                            'Heal',
+                            () => openHpAction(combatant, team, 'heal'),
+                            true,
+                        )}
                     </View>
                 )}
 
@@ -881,55 +722,101 @@ export default function CombatScreen() {
                                     ]}
                                 >
                                     <View style={styles.resourceInfo}>
-                                        <Text style={[styles.resourceName, { color: colors.text }]}>
+                                        <Text
+                                            style={[
+                                                styles.resourceName,
+                                                { color: colors.text },
+                                            ]}
+                                        >
                                             Level {level}
                                         </Text>
-                                        <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                            {slot.current}/{slot.maximum} remaining
+
+                                        <Text
+                                            style={[
+                                                styles.resourceCount,
+                                                {
+                                                    color: colors.textSecondary,
+                                                },
+                                            ]}
+                                        >
+                                            {slot.current}/{slot.maximum}
                                         </Text>
+
                                         <View style={styles.pipRow}>
                                             {Array.from(
-                                                { length: Math.min(slot.maximum, 20) },
+                                                {
+                                                    length: Math.min(
+                                                        slot.maximum,
+                                                        20,
+                                                    ),
+                                                },
                                                 (_, index) => (
                                                     <View
                                                         key={index}
                                                         style={{
-                                                            width: 8,
-                                                            height: 8,
+                                                            width: 7,
+                                                            height: 7,
                                                             borderRadius: 4,
                                                             borderWidth: 1,
-                                                            borderColor: colors.accent,
+                                                            borderColor:
+                                                                colors.accent,
                                                             backgroundColor:
-                                                                index < slot.current
+                                                                index <
+                                                                    slot.current
                                                                     ? colors.accent
                                                                     : 'transparent',
                                                         }}
                                                     />
                                                 ),
                                             )}
+
                                             {slot.maximum > 20 && (
-                                                <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
+                                                <Text
+                                                    style={[
+                                                        styles.mutedSmall,
+                                                        {
+                                                            color: colors.textSecondary,
+                                                        },
+                                                    ]}
+                                                >
                                                     +{slot.maximum - 20}
                                                 </Text>
                                             )}
                                         </View>
                                     </View>
+
                                     {!readOnly && (
                                         <Pressable
-                                            disabled={busy || slot.current <= 0}
+                                            disabled={
+                                                busy || slot.current <= 0
+                                            }
                                             onPress={() =>
-                                                void useSpellSlot(snapshot, team, Number(level))
+                                                void useSpellSlot(
+                                                    combatant,
+                                                    team,
+                                                    Number(level),
+                                                )
                                             }
                                             style={[
                                                 styles.useButton,
                                                 {
-                                                    backgroundColor: colors.backgroundSelected,
+                                                    backgroundColor:
+                                                        colors.backgroundSelected,
                                                     borderColor: colors.border,
-                                                    opacity: busy || slot.current <= 0 ? 0.4 : 1,
+                                                    opacity:
+                                                        busy ||
+                                                            slot.current <= 0
+                                                            ? 0.4
+                                                            : 1,
                                                 },
                                             ]}
                                         >
-                                            <Text style={[styles.useButtonText, { color: colors.text }]}>
+                                            <Text
+                                                style={[
+                                                    styles.useButtonText,
+                                                    { color: colors.text },
+                                                ]}
+                                            >
                                                 Use
                                             </Text>
                                         </Pressable>
@@ -954,56 +841,91 @@ export default function CombatScreen() {
                                     ]}
                                 >
                                     <View style={styles.resourceInfo}>
-                                        <Text style={[styles.resourceName, { color: colors.text }]}>
+                                        <Text
+                                            style={[
+                                                styles.resourceName,
+                                                { color: colors.text },
+                                            ]}
+                                        >
                                             {resource.name}
                                         </Text>
-                                        <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                            {resource.recovery.replaceAll('_', ' ')}
+
+                                        <Text
+                                            style={[
+                                                styles.resourceCount,
+                                                {
+                                                    color: colors.textSecondary,
+                                                },
+                                            ]}
+                                        >
+                                            {resource.current}/
+                                            {resource.maximum}
                                         </Text>
-                                        <Text style={[styles.resourceCount, { color: colors.accent }]}>
-                                            {resource.current}/{resource.maximum}
-                                        </Text>
+
                                         <View
                                             style={[
                                                 styles.progressTrack,
-                                                { backgroundColor: colors.border },
+                                                {
+                                                    backgroundColor:
+                                                        colors.border,
+                                                },
                                             ]}
                                         >
                                             <View
                                                 style={{
                                                     width: `${resource.maximum > 0
-                                                        ? Math.max(
-                                                            0,
-                                                            Math.min(
-                                                                100,
-                                                                (resource.current / resource.maximum) * 100,
-                                                            ),
-                                                        )
-                                                        : 0
+                                                            ? Math.max(
+                                                                0,
+                                                                Math.min(
+                                                                    100,
+                                                                    (resource.current /
+                                                                        resource.maximum) *
+                                                                    100,
+                                                                ),
+                                                            )
+                                                            : 0
                                                         }%`,
                                                     height: '100%',
-                                                    backgroundColor: colors.accent,
+                                                    backgroundColor:
+                                                        colors.accent,
                                                 }}
                                             />
                                         </View>
                                     </View>
+
                                     {!readOnly && (
                                         <Pressable
-                                            disabled={busy || resource.current <= 0}
+                                            disabled={
+                                                busy ||
+                                                resource.current <= 0
+                                            }
                                             onPress={() =>
-                                                void useResource(snapshot, team, resource.name)
+                                                void useResource(
+                                                    combatant,
+                                                    team,
+                                                    resource.name,
+                                                )
                                             }
                                             style={[
                                                 styles.useButton,
                                                 {
-                                                    backgroundColor: colors.backgroundSelected,
+                                                    backgroundColor:
+                                                        colors.backgroundSelected,
                                                     borderColor: colors.border,
                                                     opacity:
-                                                        busy || resource.current <= 0 ? 0.4 : 1,
+                                                        busy ||
+                                                            resource.current <= 0
+                                                            ? 0.4
+                                                            : 1,
                                                 },
                                             ]}
                                         >
-                                            <Text style={[styles.useButtonText, { color: colors.text }]}>
+                                            <Text
+                                                style={[
+                                                    styles.useButtonText,
+                                                    { color: colors.text },
+                                                ]}
+                                            >
                                                 Use
                                             </Text>
                                         </Pressable>
@@ -1015,21 +937,16 @@ export default function CombatScreen() {
                 )}
 
                 {renderSection(
-                    'Feats',
-                    'No feats recorded',
-                    feats.length > 0 ? (
-                        <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                            {feats.join(', ')}
-                        </Text>
-                    ) : null,
-                )}
-
-                {renderSection(
                     'Defenses',
                     'No special defenses',
                     defenses.length > 0 ? (
-                        <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                            {defenses.join(' · ')}
+                        <Text
+                            style={[
+                                styles.detailText,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
+                            {defenses.join('\n')}
                         </Text>
                     ) : null,
                 )}
@@ -1040,17 +957,26 @@ export default function CombatScreen() {
                     weapons.length > 0 ? (
                         <View style={styles.sectionItems}>
                             {weapons.map((weapon) => {
-                                const attackBonus = weapon.getAttackBonus(character);
-                                const damageBonus = weapon.getDamageBonus(character);
+                                const attackBonus =
+                                    weapon.getAttackBonus(character);
+                                const damageBonus =
+                                    weapon.getDamageBonus(character);
 
                                 const damageFormula = weapon.isUnarmed
-                                    ? `${Math.max(1, Number(weapon.damageDice) + damageBonus)} ${weapon.damageType}`
+                                    ? `${Math.max(
+                                        1,
+                                        Number(weapon.damageDice) +
+                                        damageBonus,
+                                    )} ${weapon.damageType}`
                                     : damageBonus === 0
                                         ? `${weapon.damageDice} ${weapon.damageType}`
-                                        : `${weapon.damageDice} ${damageBonus > 0 ? '+' : '−'} ${Math.abs(damageBonus)} ${weapon.damageType}`;
-                                        
+                                        : `${weapon.damageDice} ${damageBonus > 0 ? '+' : '−'
+                                        } ${Math.abs(damageBonus)} ${weapon.damageType}`;
+
                                 const properties = [
-                                    weapon.isProficient ? 'Proficient' : null,
+                                    weapon.isProficient
+                                        ? 'Proficient'
+                                        : null,
                                     weapon.isFinesse ? 'Finesse' : null,
                                     weapon.isThrown ? 'Thrown' : null,
                                     weapon.isBound ? 'Bound' : null,
@@ -1060,69 +986,71 @@ export default function CombatScreen() {
                                 return (
                                     <View
                                         key={weapon.id}
-                                        style={{
-                                            padding: 8,
-                                            gap: 5,
-                                            borderWidth: 1,
-                                            borderColor: colors.border,
-                                            borderRadius: 8,
-                                            backgroundColor: colors.background,
-                                        }}
+                                        style={[
+                                            styles.weaponCard,
+                                            {
+                                                borderColor: colors.border,
+                                                backgroundColor:
+                                                    colors.background,
+                                            },
+                                        ]}
                                     >
                                         <Text
-                                            style={{
-                                                color: colors.text,
-                                                fontSize: 11,
-                                                fontWeight: '800',
-                                            }}
+                                            style={[
+                                                styles.weaponName,
+                                                { color: colors.text },
+                                            ]}
                                         >
                                             {weapon.name}
                                         </Text>
 
-                                        <View
-                                            style={{
-                                                flexDirection: 'row',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                gap: 4,
-                                            }}
-                                        >
-                                            <View style={{ flex: 1 }}>
+                                        <View style={styles.weaponStats}>
+                                            <View
+                                                style={styles.weaponAttack}
+                                            >
                                                 <Text
                                                     style={[
                                                         styles.mutedSmall,
-                                                        { color: colors.textSecondary },
+                                                        {
+                                                            color: colors.textSecondary,
+                                                        },
                                                     ]}
                                                 >
                                                     ATTACK
                                                 </Text>
+
                                                 <Text
-                                                    style={{
-                                                        color: colors.accent,
-                                                        fontSize: 15,
-                                                        fontWeight: '900',
-                                                    }}
+                                                    style={[
+                                                        styles.attackBonus,
+                                                        { color: colors.accent },
+                                                    ]}
                                                 >
-                                                    {attackBonus >= 0 ? '+' : ''}
+                                                    {attackBonus >= 0
+                                                        ? '+'
+                                                        : ''}
                                                     {attackBonus}
                                                 </Text>
                                             </View>
 
-                                            <View style={{ flex: 2 }}>
+                                            <View
+                                                style={styles.weaponDamage}
+                                            >
                                                 <Text
                                                     style={[
                                                         styles.mutedSmall,
-                                                        { color: colors.textSecondary },
+                                                        {
+                                                            color: colors.textSecondary,
+                                                        },
                                                     ]}
                                                 >
                                                     DAMAGE
                                                 </Text>
+
                                                 <Text
-                                                    style={{
-                                                        color: colors.text,
-                                                        fontSize: 11,
-                                                        fontWeight: '700',
-                                                    }}
+                                                    style={[
+                                                        styles.damageFormula,
+                                                        { color: colors.text },
+                                                    ]}
                                                 >
                                                     {damageFormula}
                                                 </Text>
@@ -1132,19 +1060,25 @@ export default function CombatScreen() {
                                         <Text
                                             style={[
                                                 styles.mutedSmall,
-                                                { color: colors.textSecondary },
+                                                {
+                                                    color: colors.textSecondary,
+                                                },
                                             ]}
                                         >
-                                            {weapon.attackAbility.toUpperCase()} attack
+                                            {weapon.attackAbility.toUpperCase()}{' '}
+                                            attack
                                             {' · '}
-                                            {weapon.damageAbility.toUpperCase()} damage
+                                            {weapon.damageAbility.toUpperCase()}{' '}
+                                            damage
                                         </Text>
 
                                         {properties.length > 0 && (
                                             <Text
                                                 style={[
                                                     styles.mutedSmall,
-                                                    { color: colors.textSecondary },
+                                                    {
+                                                        color: colors.textSecondary,
+                                                    },
                                                 ]}
                                             >
                                                 {properties.join(' · ')}
@@ -1158,16 +1092,10 @@ export default function CombatScreen() {
                 )}
 
                 {renderButton(
-                    'Details →',
-                    () => void openDetails(snapshot.characterId),
+                    'Details',
+                    () => void openDetails(combatant.characterId),
                     true,
                 )}
-
-                {!readOnly &&
-                    renderButton(
-                        'Remove from combat',
-                        () => void removeCharacter(snapshot, team),
-                    )}
             </View>
         );
     };
@@ -1181,9 +1109,19 @@ export default function CombatScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.centered, { backgroundColor: colors.background }]}>
+            <View
+                style={[
+                    styles.centered,
+                    { backgroundColor: colors.background },
+                ]}
+            >
                 <ActivityIndicator size="large" color={colors.accent} />
-                <Text style={[styles.muted, { color: colors.textSecondary }]}>
+                <Text
+                    style={[
+                        styles.muted,
+                        { color: colors.textSecondary },
+                    ]}
+                >
                     Loading combat...
                 </Text>
             </View>
@@ -1192,15 +1130,34 @@ export default function CombatScreen() {
 
     if (error || !combat) {
         return (
-            <View style={[styles.centered, { backgroundColor: colors.background }]}>
+            <View
+                style={[
+                    styles.centered,
+                    { backgroundColor: colors.background },
+                ]}
+            >
                 <Text style={[styles.pageTitle, { color: colors.text }]}>
                     Could not open combat
                 </Text>
-                <Text style={[styles.muted, { color: colors.textSecondary }]}>
+
+                <Text
+                    style={[
+                        styles.muted,
+                        { color: colors.textSecondary },
+                    ]}
+                >
                     {error ?? 'Combat not found.'}
                 </Text>
-                {renderButton('Retry', () => void loadCurrentCombat(), true)}
-                {renderButton('Combat History', () => router.replace('/combat'))}
+
+                {renderButton(
+                    'Retry',
+                    () => void loadCurrentCombat(),
+                    true,
+                )}
+                {renderButton(
+                    'Back to Combats',
+                    () => router.replace('/combat'),
+                )}
             </View>
         );
     }
@@ -1216,12 +1173,25 @@ export default function CombatScreen() {
                     <Text style={[styles.eyebrow, { color: colors.accent }]}>
                         DUNGEON MASTER · COMBAT
                     </Text>
+
                     <Text style={[styles.pageTitle, { color: colors.text }]}>
                         {combat.name}
                     </Text>
-                    <Text style={[styles.muted, { color: colors.textSecondary }]}>
+
+                    <Text
+                        style={[
+                            styles.muted,
+                            { color: colors.textSecondary },
+                        ]}
+                    >
                         {readOnly
-                            ? `Finished · ${OUTCOMES.find((item) => item.value === combat.outcome)?.label ?? combat.outcome ?? 'No outcome recorded'}`
+                            ? `Finished · ${OUTCOMES.find(
+                                (item) =>
+                                    item.value === combat.outcome,
+                            )?.label ??
+                            combat.outcome ??
+                            'No outcome recorded'
+                            }`
                             : 'Manage combat freely. No initiative order or turns are enforced.'}
                     </Text>
                 </View>
@@ -1230,14 +1200,29 @@ export default function CombatScreen() {
                     <View
                         style={[
                             styles.finishedBanner,
-                            { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                            {
+                                borderColor: colors.border,
+                                backgroundColor: colors.backgroundElement,
+                            },
                         ]}
                     >
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                        <Text
+                            style={[
+                                styles.sectionTitle,
+                                { color: colors.text },
+                            ]}
+                        >
                             Combat finished
                         </Text>
-                        <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                            This encounter is read-only. Its snapshots and event timeline are preserved.
+
+                        <Text
+                            style={[
+                                styles.muted,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
+                            This encounter is read-only. Character data
+                            remains managed by the character repository.
                         </Text>
                     </View>
                 )}
@@ -1247,26 +1232,49 @@ export default function CombatScreen() {
                         <View
                             style={[
                                 styles.teamHeader,
-                                { borderColor: '#4F86D9', backgroundColor: colors.backgroundElement },
+                                {
+                                    borderColor: '#4F86D9',
+                                    backgroundColor: colors.backgroundElement,
+                                },
                             ]}
                         >
-                            <Text style={[styles.teamTitle, { color: '#4F86D9' }]}>
+                            <Text
+                                style={[
+                                    styles.teamTitle,
+                                    { color: '#4F86D9' },
+                                ]}
+                            >
                                 TEAM 1
                             </Text>
-                            <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                {combat.team1.length} combatant(s)
+
+                            <Text
+                                style={[
+                                    styles.mutedSmall,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
+                                {team1.length} combatant(s)
                             </Text>
+
                             {!readOnly &&
-                                renderButton('+ Add', () => void openAddModal('team1'))}
+                                renderButton(
+                                    '+ Add',
+                                    () => void openAddModal('team1'),
+                                )}
                         </View>
 
-                        {combat.team1.length === 0 ? (
-                            <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
+                        {team1.length === 0 ? (
+                            <Text
+                                style={[
+                                    styles.mutedSmall,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
                                 No combatants
                             </Text>
                         ) : (
-                            combat.team1.map((snapshot) =>
-                                renderCharacterCard(snapshot, 'team1'),
+                            team1.map((combatant) =>
+                                renderCharacterCard(combatant, 'team1'),
                             )
                         )}
                     </View>
@@ -1279,26 +1287,49 @@ export default function CombatScreen() {
                         <View
                             style={[
                                 styles.teamHeader,
-                                { borderColor: '#D98245', backgroundColor: colors.backgroundElement },
+                                {
+                                    borderColor: '#D98245',
+                                    backgroundColor: colors.backgroundElement,
+                                },
                             ]}
                         >
-                            <Text style={[styles.teamTitle, { color: '#D98245' }]}>
+                            <Text
+                                style={[
+                                    styles.teamTitle,
+                                    { color: '#D98245' },
+                                ]}
+                            >
                                 TEAM 2
                             </Text>
-                            <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                {combat.team2.length} combatant(s)
+
+                            <Text
+                                style={[
+                                    styles.mutedSmall,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
+                                {team2.length} combatant(s)
                             </Text>
+
                             {!readOnly &&
-                                renderButton('+ Add', () => void openAddModal('team2'))}
+                                renderButton(
+                                    '+ Add',
+                                    () => void openAddModal('team2'),
+                                )}
                         </View>
 
-                        {combat.team2.length === 0 ? (
-                            <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
+                        {team2.length === 0 ? (
+                            <Text
+                                style={[
+                                    styles.mutedSmall,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
                                 No combatants
                             </Text>
                         ) : (
-                            combat.team2.map((snapshot) =>
-                                renderCharacterCard(snapshot, 'team2'),
+                            team2.map((combatant) =>
+                                renderCharacterCard(combatant, 'team2'),
                             )
                         )}
                     </View>
@@ -1306,51 +1337,23 @@ export default function CombatScreen() {
 
                 {!readOnly && (
                     <View style={styles.footerActions}>
-                        {renderButton('Finish Combat', () => setFinishVisible(true), true)}
+                        {renderButton(
+                            'Finish Combat',
+                            () => setFinishVisible(true),
+                            true,
+                        )}
                     </View>
                 )}
 
-                <View style={styles.historyHeader}>
-                    <Text style={[styles.historyTitle, { color: colors.text }]}>
-                        Combat History
-                    </Text>
-                    <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                        {combat.history.length} event(s)
-                    </Text>
-                </View>
-
-                {combat.history.length === 0 ? (
-                    <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                        No events recorded.
-                    </Text>
-                ) : (
-                    [...combat.history].reverse().map((event) => (
-                        <View
-                            key={event.id}
-                            style={[
-                                styles.historyItem,
-                                {
-                                    backgroundColor: colors.backgroundElement,
-                                    borderColor: colors.border,
-                                },
-                            ]}
-                        >
-                            <Text style={[styles.historyDescription, { color: colors.text }]}>
-                                {event.description}
-                            </Text>
-                            <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                {new Date(event.timestamp).toLocaleString()}
-                            </Text>
-                            <Text style={[styles.historyCheckpoint, { color: colors.textSecondary }]}>
-                                Checkpoint: Team 1 ({event.team1.length}) · Team 2 ({event.team2.length})
-                            </Text>
-                        </View>
-                    ))
-                )}
-
                 <View style={styles.footerActions}>
-                    {renderButton('Back to Combats', () => router.replace('/combat'))}
-                    {renderButton('Delete Combat', () => void deleteThisCombat())}
+                    {renderButton(
+                        'Back to Combats',
+                        () => router.replace('/combat'),
+                    )}
+                    {renderButton(
+                        'Delete Combat',
+                        () => void deleteThisCombat(),
+                    )}
                 </View>
             </ScrollView>
 
@@ -1370,18 +1373,35 @@ export default function CombatScreen() {
                     <View
                         style={[
                             styles.modalCard,
-                            { backgroundColor: colors.background, borderColor: colors.border },
+                            {
+                                backgroundColor: colors.background,
+                                borderColor: colors.border,
+                            },
                         ]}
                     >
-                        <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        <Text
+                            style={[
+                                styles.modalTitle,
+                                { color: colors.text },
+                            ]}
+                        >
                             {actionTitle}
                         </Text>
-                        <Text style={[styles.muted, { color: colors.textSecondary }]}>
+
+                        <Text
+                            style={[
+                                styles.muted,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
                             {hpTarget?.characterName}
                         </Text>
+
                         <TextInput
                             value={hpAmount}
-                            onChangeText={(value) => setHpAmount(value.replace(/[^0-9]/g, ''))}
+                            onChangeText={(value) =>
+                                setHpAmount(value.replace(/[^0-9]/g, ''))
+                            }
                             keyboardType="number-pad"
                             placeholder="Amount"
                             placeholderTextColor={colors.textSecondary}
@@ -1396,11 +1416,13 @@ export default function CombatScreen() {
                                 },
                             ]}
                         />
+
                         <View style={styles.modalActions}>
                             {renderButton('Cancel', () => {
                                 setHpAction(null);
                                 setHpTarget(null);
                             })}
+
                             {renderButton(
                                 busy ? 'Saving...' : 'Apply',
                                 () => void applyHpAction(),
@@ -1424,20 +1446,40 @@ export default function CombatScreen() {
                     <View
                         style={[
                             styles.modalCard,
-                            { backgroundColor: colors.background, borderColor: colors.border },
+                            {
+                                backgroundColor: colors.background,
+                                borderColor: colors.border,
+                            },
                         ]}
                     >
-                        <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        <Text
+                            style={[
+                                styles.modalTitle,
+                                { color: colors.text },
+                            ]}
+                        >
                             Add to Team {addTeam === 'team1' ? '1' : '2'}
                         </Text>
 
                         {loadingCandidates ? (
-                            <ActivityIndicator size="large" color={colors.accent} />
+                            <ActivityIndicator
+                                size="large"
+                                color={colors.accent}
+                            />
                         ) : (
                             <ScrollView style={{ maxHeight: 420 }}>
                                 {candidates.length === 0 ? (
-                                    <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                                        No available characters. All existing characters may already be in this combat.
+                                    <Text
+                                        style={[
+                                            styles.muted,
+                                            {
+                                                color: colors.textSecondary,
+                                            },
+                                        ]}
+                                    >
+                                        No available characters. All existing
+                                        characters may already be in this
+                                        combat.
                                     </Text>
                                 ) : (
                                     <View style={{ gap: 8 }}>
@@ -1445,48 +1487,131 @@ export default function CombatScreen() {
                                             <Pressable
                                                 key={candidate.id}
                                                 disabled={busy}
-                                                onPress={() => void addCharacter(candidate)}
+                                                onPress={() =>
+                                                    void addCharacter(candidate)
+                                                }
                                                 style={[
                                                     styles.candidateRow,
                                                     {
-                                                        borderColor: colors.border,
-                                                        backgroundColor: colors.backgroundElement,
+                                                        borderColor:
+                                                            colors.border,
+                                                        backgroundColor:
+                                                            colors.backgroundElement,
                                                     },
                                                 ]}
                                             >
-                                                {candidate.character.portraitPath ? (
+                                                {candidate.character
+                                                    .portraitPath ? (
                                                     <Image
-                                                        source={{ uri: candidate.character.portraitPath }}
-                                                        style={styles.candidatePortrait}
+                                                        source={{
+                                                            uri: candidate
+                                                                .character
+                                                                .portraitPath,
+                                                        }}
+                                                        style={
+                                                            styles.candidatePortrait
+                                                        }
                                                     />
                                                 ) : (
                                                     <View
                                                         style={[
                                                             styles.candidatePortrait,
                                                             {
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                backgroundColor: colors.backgroundSelected,
+                                                                alignItems:
+                                                                    'center',
+                                                                justifyContent:
+                                                                    'center',
+                                                                backgroundColor:
+                                                                    colors.backgroundSelected,
                                                             },
                                                         ]}
                                                     >
-                                                        <Text style={{ color: colors.text }}>
-                                                            {(candidate.character.name || '?').charAt(0)}
+                                                        <Text
+                                                            style={{
+                                                                color: colors.text,
+                                                            }}
+                                                        >
+                                                            {(
+                                                                candidate
+                                                                    .character
+                                                                    .name || '?'
+                                                            )
+                                                                .charAt(0)
+                                                                .toUpperCase()}
                                                         </Text>
                                                     </View>
                                                 )}
-                                                <View style={{ flex: 1, gap: 3 }}>
-                                                    <Text style={[styles.resourceName, { color: colors.text }]}>
-                                                        {candidate.character.name || 'Unnamed Character'}
+
+                                                <View
+                                                    style={{
+                                                        flex: 1,
+                                                        gap: 3,
+                                                    }}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.resourceName,
+                                                            {
+                                                                color: colors.text,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {candidate.character
+                                                            .name ||
+                                                            'Unnamed Character'}
                                                     </Text>
-                                                    <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                                        {getClasses(candidate.character)} · {candidate.character.species || 'Species not set'}
+
+                                                    <Text
+                                                        style={[
+                                                            styles.mutedSmall,
+                                                            {
+                                                                color: colors.textSecondary,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {getClasses(
+                                                            candidate.character,
+                                                        )}
+                                                        {' · '}
+                                                        {candidate.character
+                                                            .species ||
+                                                            'Species not set'}
                                                     </Text>
-                                                    <Text style={[styles.mutedSmall, { color: colors.textSecondary }]}>
-                                                        HP {candidate.character.currentHp}/{candidate.character.maxHp} · AC {candidate.character.armorClass}
+
+                                                    <Text
+                                                        style={[
+                                                            styles.mutedSmall,
+                                                            {
+                                                                color: colors.textSecondary,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        HP{' '}
+                                                        {
+                                                            candidate.character
+                                                                .currentHp
+                                                        }
+                                                        /
+                                                        {
+                                                            candidate.character
+                                                                .maxHp
+                                                        }
+                                                        {' · '}AC{' '}
+                                                        {
+                                                            candidate.character
+                                                                .armorClass
+                                                        }
                                                     </Text>
                                                 </View>
-                                                <Text style={[styles.addSymbol, { color: colors.accent }]}>+</Text>
+
+                                                <Text
+                                                    style={[
+                                                        styles.addSymbol,
+                                                        { color: colors.accent },
+                                                    ]}
+                                                >
+                                                    +
+                                                </Text>
                                             </Pressable>
                                         ))}
                                     </View>
@@ -1495,13 +1620,15 @@ export default function CombatScreen() {
                         )}
 
                         <View style={styles.modalActions}>
-                            {renderButton('Cancel', () => setAddVisible(false))}
+                            {renderButton('Cancel', () =>
+                                setAddVisible(false),
+                            )}
                         </View>
                     </View>
                 </View>
             </Modal>
 
-            {/* Finish combat and record the outcome */}
+            {/* Finish combat and record its outcome */}
             <Modal
                 visible={finishVisible}
                 transparent
@@ -1514,14 +1641,29 @@ export default function CombatScreen() {
                     <View
                         style={[
                             styles.modalCard,
-                            { backgroundColor: colors.background, borderColor: colors.border },
+                            {
+                                backgroundColor: colors.background,
+                                borderColor: colors.border,
+                            },
                         ]}
                     >
-                        <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        <Text
+                            style={[
+                                styles.modalTitle,
+                                { color: colors.text },
+                            ]}
+                        >
                             Finish Combat
                         </Text>
-                        <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                            Choose the outcome. This makes the combat read-only while preserving its full history.
+
+                        <Text
+                            style={[
+                                styles.muted,
+                                { color: colors.textSecondary },
+                            ]}
+                        >
+                            Choose the outcome. This makes the combat
+                            read-only.
                         </Text>
 
                         <View style={{ gap: 8 }}>
@@ -1529,16 +1671,24 @@ export default function CombatScreen() {
                                 <Pressable
                                     key={outcome.value}
                                     disabled={busy}
-                                    onPress={() => void finishCombat(outcome.value)}
+                                    onPress={() =>
+                                        void finishCombat(outcome.value)
+                                    }
                                     style={[
                                         styles.outcomeButton,
                                         {
-                                            backgroundColor: colors.backgroundElement,
+                                            backgroundColor:
+                                                colors.backgroundElement,
                                             borderColor: colors.border,
                                         },
                                     ]}
                                 >
-                                    <Text style={[styles.buttonText, { color: colors.text }]}>
+                                    <Text
+                                        style={[
+                                            styles.buttonText,
+                                            { color: colors.text },
+                                        ]}
+                                    >
                                         {outcome.label}
                                     </Text>
                                 </Pressable>
@@ -1546,7 +1696,9 @@ export default function CombatScreen() {
                         </View>
 
                         <View style={styles.modalActions}>
-                            {renderButton('Cancel', () => setFinishVisible(false))}
+                            {renderButton('Cancel', () =>
+                                setFinishVisible(false),
+                            )}
                         </View>
                     </View>
                 </View>
@@ -1561,7 +1713,7 @@ const styles = StyleSheet.create({
         padding: Spacing.four,
         paddingTop: Spacing.six,
         paddingBottom: 100,
-        gap: 16,
+        gap: 12,
     },
     header: {
         gap: 5,
@@ -1582,7 +1734,7 @@ const styles = StyleSheet.create({
     },
     mutedSmall: {
         fontSize: 10,
-        lineHeight: 14,
+        lineHeight: 13,
     },
     centered: {
         flex: 1,
@@ -1599,7 +1751,7 @@ const styles = StyleSheet.create({
     teamColumn: {
         flex: 1,
         minWidth: 0,
-        gap: 10,
+        gap: 8,
     },
     swordColumn: {
         width: 25,
@@ -1625,82 +1777,59 @@ const styles = StyleSheet.create({
     },
     characterCard: {
         borderWidth: 1,
-        borderRadius: 12,
-        padding: 8,
-        gap: 10,
+        borderRadius: 9,
+        padding: 6,
+        gap: 8,
     },
     identity: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 7,
+        gap: 6,
     },
     portrait: {
-        width: 45,
-        height: 56,
-        borderRadius: 7,
+        width: 27,
+        height: 32,
+        borderRadius: 4,
         backgroundColor: '#292929',
     },
     portraitPlaceholder: {
-        width: 45,
-        height: 56,
-        borderRadius: 7,
+        width: 27,
+        height: 32,
+        borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',
     },
     portraitInitial: {
-        fontSize: 20,
+        fontSize: 12,
         fontWeight: '800',
     },
     identityText: {
         flex: 1,
         minWidth: 0,
-        gap: 3,
+        gap: 2,
     },
     name: {
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    classes: {
-        fontSize: 10,
+        fontSize: 11,
         lineHeight: 14,
-    },
-    species: {
-        fontSize: 10,
-    },
-    statsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 4,
-    },
-    statCell: {
-        width: '48%',
-        flexGrow: 1,
-        minWidth: 0,
-        padding: 5,
-        borderRadius: 6,
-    },
-    statLabel: {
-        fontSize: 9,
-        fontWeight: '600',
-    },
-    statValue: {
-        fontSize: 12,
         fontWeight: '800',
-        marginTop: 2,
     },
-    actionColumn: {
-        flexDirection: 'column',
-        gap: 4,
+    hpSummary: {
+        fontSize: 9,
+        lineHeight: 12,
+    },
+    hpActions: {
+        flexDirection: 'row',
+        gap: 3,
     },
     button: {
         flex: 1,
         minWidth: 0,
-        minHeight: 34,
-        paddingHorizontal: 5,
-        paddingVertical: 8,
+        minHeight: 30,
+        paddingHorizontal: 3,
+        paddingVertical: 6,
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 7,
+        borderRadius: 6,
         borderWidth: 1,
     },
     buttonText: {
@@ -1709,22 +1838,22 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     section: {
-        gap: 6,
+        gap: 5,
     },
     sectionTitle: {
         fontSize: 11,
         fontWeight: '800',
     },
     sectionItems: {
-        gap: 6,
+        gap: 5,
     },
     resourceRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 5,
-        padding: 6,
+        gap: 4,
+        padding: 5,
         borderWidth: 1,
-        borderRadius: 7,
+        borderRadius: 6,
     },
     resourceInfo: {
         flex: 1,
@@ -1732,18 +1861,18 @@ const styles = StyleSheet.create({
         gap: 3,
     },
     resourceName: {
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: '800',
     },
     resourceCount: {
-        fontSize: 10,
-        fontWeight: '800',
+        fontSize: 9,
+        fontWeight: '700',
     },
     pipRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 3,
-        marginTop: 2,
+        marginTop: 1,
     },
     progressTrack: {
         height: 4,
@@ -1752,12 +1881,12 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     useButton: {
-        minWidth: 36,
-        paddingHorizontal: 6,
-        paddingVertical: 6,
+        minWidth: 32,
+        paddingHorizontal: 5,
+        paddingVertical: 5,
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 6,
+        borderRadius: 5,
         borderWidth: 1,
     },
     useButtonText: {
@@ -1768,6 +1897,37 @@ const styles = StyleSheet.create({
         fontSize: 10,
         lineHeight: 14,
     },
+    weaponCard: {
+        padding: 6,
+        gap: 4,
+        borderWidth: 1,
+        borderRadius: 6,
+    },
+    weaponName: {
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    weaponStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    weaponAttack: {
+        flex: 1,
+        minWidth: 0,
+    },
+    weaponDamage: {
+        flex: 2,
+        minWidth: 0,
+    },
+    attackBonus: {
+        fontSize: 14,
+        fontWeight: '900',
+    },
+    damageFormula: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
     disabled: {
         opacity: 0.45,
     },
@@ -1776,30 +1936,6 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 8,
         marginTop: 4,
-    },
-    historyHeader: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-        marginTop: 12,
-    },
-    historyTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-    },
-    historyItem: {
-        borderWidth: 1,
-        borderRadius: 10,
-        padding: 11,
-        gap: 5,
-    },
-    historyDescription: {
-        fontSize: 12,
-        fontWeight: '700',
-        lineHeight: 17,
-    },
-    historyCheckpoint: {
-        fontSize: 10,
     },
     finishedBanner: {
         borderWidth: 1,
