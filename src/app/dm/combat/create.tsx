@@ -1,4 +1,3 @@
-import * as Crypto from 'expo-crypto';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -14,9 +13,11 @@ import {
 
 import { Colors, Spacing } from '@/constants/theme';
 
-import { Combat, type CombatantSnapshot, type CombatHistoryEntry } from '@/models/combat';
+import {
+    saveCombat
+} from '@/api/combats';
 import { CharacterSummary, listCharacters, loadCharacter } from '@/database/character-repository';
-import { saveCombat } from '@/database/combat-repository';
+import { Combat, CombatantRef } from '@/models/combat';
 
 type Team = 'team1' | 'team2';
 type PartyFilter = 'all' | 'party' | 'non_party';
@@ -198,17 +199,15 @@ export default function CreateCombatScreen() {
                 Promise.all(selectedTeam2.map((id) => loadCharacter(id))),
             ]);
 
-            const team1: CombatantSnapshot[] = team1Characters.map(
+            const team1: CombatantRef[] = team1Characters.map(
                 (character) => ({
                     characterId: character.id,
-                    character,
                 }),
             );
 
-            const team2: CombatantSnapshot[] = team2Characters.map(
+            const team2: CombatantRef[] = team2Characters.map(
                 (character) => ({
                     characterId: character.id,
-                    character,
                 }),
             );
 
@@ -223,23 +222,8 @@ export default function CreateCombatScreen() {
                 createdAt: now,
                 startedAt: now,
                 finishedAt: null,
-                history: [],
             });
 
-            const initialCheckpoint: CombatHistoryEntry = {
-                id: Crypto.randomUUID(),
-                timestamp: now,
-                type: 'combat_started',
-                description: 'Combat started.',
-                characterId: null,
-                characterName: null,
-                team: null,
-                amount: null,
-                team1,
-                team2,
-            };
-
-            combat.history.push(initialCheckpoint);
 
             await saveCombat(combat);
 

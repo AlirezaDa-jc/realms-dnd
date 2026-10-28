@@ -4,16 +4,18 @@ import CharacterForm, {
     type CharacterFormValues,
 } from '@/components/characters/character-form';
 
-import { saveCharacter } from '@/database/character-repository';
+import { createCharacter } from '@/api/characters';
 import { Character } from '@/models/character';
 
 export default function CreateCharacterScreen() {
     const { dmMode: dmModeParam } = useLocalSearchParams<{
         dmMode?: string;
     }>();
+
     const dmMode = dmModeParam === 'true';
     const router = useRouter();
-    const { showDialog, showInfo, showConfirm } = useDialog();
+    const { showDialog, showInfo } = useDialog();
+
     async function handleSubmit(values: CharacterFormValues) {
         try {
             const character = new Character({
@@ -43,7 +45,8 @@ export default function CreateCharacterScreen() {
                 encounterRole: values.encounterRole.trim(),
             });
 
-            await saveCharacter(character);
+            // Save to the shared backend database.
+            await createCharacter(character);
 
             showDialog({
                 title: 'Character Created',
@@ -61,7 +64,7 @@ export default function CreateCharacterScreen() {
                 'Save Failed',
                 error instanceof Error
                     ? error.message
-                    : 'Failed to save the character to the database.',
+                    : 'Failed to save the character to the server.',
             );
         }
     }

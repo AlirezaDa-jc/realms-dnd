@@ -11,8 +11,11 @@ import {
     View,
 } from 'react-native';
 
+import {
+    type CombatSummary,
+    listCombats,
+} from '@/api/combats';
 import { Colors, Spacing } from '@/constants/theme';
-import { CombatSummary, listCombats } from '@/database/combat-repository';
 
 
 export default function CombatIndexScreen() {

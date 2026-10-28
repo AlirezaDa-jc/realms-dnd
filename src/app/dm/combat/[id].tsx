@@ -21,12 +21,13 @@ import {
     listCharacters,
     loadCharacter,
     saveCharacter,
-} from '@/database/character-repository';
+} from '@/api/characters';
+
 import {
     deleteCombat,
     loadCombat,
     saveCombat,
-} from '@/database/combat-repository';
+} from '@/api/combats';
 import type { Character } from '@/models/character';
 import {
     Combat,
@@ -874,16 +875,16 @@ export default function CombatScreen() {
                                             <View
                                                 style={{
                                                     width: `${resource.maximum > 0
-                                                            ? Math.max(
-                                                                0,
-                                                                Math.min(
-                                                                    100,
-                                                                    (resource.current /
-                                                                        resource.maximum) *
-                                                                    100,
-                                                                ),
-                                                            )
-                                                            : 0
+                                                        ? Math.max(
+                                                            0,
+                                                            Math.min(
+                                                                100,
+                                                                (resource.current /
+                                                                    resource.maximum) *
+                                                                100,
+                                                            ),
+                                                        )
+                                                        : 0
                                                         }%`,
                                                     height: '100%',
                                                     backgroundColor:

@@ -1,6 +1,7 @@
-import { listCharacters, loadCharacter } from '@/database/character-repository';
+
+import { listCharacters, loadCharacter } from '@/api/characters';
 import { loadSetting, saveSetting } from '@/database/settings-repository';
-import { Character } from '@/models/character';
+import type { Character } from '@/models/character';
 
 const LAST_CHARACTER_KEY = 'last_character_id';
 

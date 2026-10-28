@@ -2,12 +2,13 @@ import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors, Spacing } from '@/constants/theme';
 import { setActiveCharacter } from '@/database/active-character';
 import {
+    createCharacter,
     deleteCharacter,
     duplicateCharacter,
     listCharacters,
     loadCharacter,
     saveCharacter,
-} from '@/database/character-repository';
+} from '@/api/characters';
 import { characterFromJSON, characterToJSON } from '@/database/character-serializer';
 import type { Character } from '@/models/character';
 import { BlurView } from 'expo-blur';
@@ -71,7 +72,7 @@ export default function CharactersScreen() {
             setError(
                 err instanceof Error
                     ? err.message
-                    : 'Could not load characters from the database.',
+                    : 'Could not load characters from the server.',
             );
         } finally {
             setLoading(false);
@@ -83,6 +84,7 @@ export default function CharactersScreen() {
             void refreshCharacters();
         }, [refreshCharacters]),
     );
+
     async function toggleParty(entry: CharacterEntry) {
         if (busy) return;
 
@@ -489,7 +491,8 @@ export default function CharactersScreen() {
                         }
                     }
 
-                    await saveCharacter(character, id);
+                    character.id = id;
+                    await createCharacter(character);
                     importedCount++;
                 } catch (error) {
                     failures.push(
@@ -633,7 +636,8 @@ export default function CharactersScreen() {
                 }
             }
 
-            await saveCharacter(imported, id);
+            imported.id = id;
+            await createCharacter(imported);
             await refreshCharacters();
 
             showInfo(
@@ -833,7 +837,7 @@ export default function CharactersScreen() {
                         {busy ? 'Working...' : 'Import JSON'}
                     </Text>
                 </Pressable>
-                
+
                 <Pressable
                     onPress={() => void importAllCharacters()}
                     disabled={busy}

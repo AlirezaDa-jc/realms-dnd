@@ -11,7 +11,7 @@ import CharacterForm, {
     type CharacterFormValues,
 } from '@/components/characters/character-form';
 import { Colors } from '@/constants/theme';
-import { loadCharacter, saveCharacter } from '@/database/character-repository';
+import { loadCharacter, saveCharacter } from '@/api/characters';
 import type { Character } from '@/models/character';
 
 export default function EditCharacterScreen() {
@@ -106,9 +106,10 @@ export default function EditCharacterScreen() {
                 character,
                 {
                     name: values.name.trim(),
-                    species: values.species,
+                    species: values.species.trim(),
                     classLevels: values.classLevels.map((entry) => ({
-                        ...entry,
+                        characterClass: entry.characterClass.trim(),
+                        subClass: entry.subClass.trim(),
                         level: Number(entry.level),
                     })),
                     background: values.background.trim(),
@@ -123,6 +124,11 @@ export default function EditCharacterScreen() {
                     maxHp: Number(values.maxHp),
                     currentHp: Number(values.currentHp),
                     speed: Number(values.speed),
+
+                    // DM fields
+                    category: values.category.trim(),
+                    challengeRating: values.challengeRating,
+                    encounterRole: values.encounterRole.trim(),
                 },
             ) as Character;
 

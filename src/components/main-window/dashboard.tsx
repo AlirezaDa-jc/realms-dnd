@@ -7,10 +7,12 @@ import {
     useColorScheme,
 } from 'react-native';
 
+import {
+    saveCharacter
+} from '@/api/characters';
 import { useDialog } from '@/components/dialog/realms-dialog';
 import { Colors } from '@/constants/theme';
 import { loadActiveCharacter } from '@/database/active-character';
-import { saveCharacter } from '@/database/character-repository';
 import { Character } from '@/models/character';
 
 import AbilityScores from './ability-scores';
