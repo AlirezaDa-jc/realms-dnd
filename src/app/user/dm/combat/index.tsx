@@ -60,18 +60,18 @@ export default function CombatIndexScreen() {
     function startOrResumeCombat() {
         if (activeCombat) {
             router.push({
-                pathname: '/dm/combat/[id]',
+                pathname: '/user/dm/combat/[id]',
                 params: { id: activeCombat.id },
             });
             return;
         }
 
-        router.push('/dm/combat/create');
+        router.push('/user/dm/combat/create');
     }
 
     function openCombat(combatId: string) {
         router.push({
-            pathname: '/dm/combat/[id]',
+            pathname: '/user/dm/combat/[id]',
             params: { id: combatId },
         });
     }
@@ -143,7 +143,7 @@ export default function CombatIndexScreen() {
                 </Pressable>
 
                 <Pressable
-                    onPress={() => router.push('/dm/combat/history')}
+                    onPress={() => router.push('/user/dm/combat/history')}
                     style={[
                         styles.secondaryButton,
                         {
@@ -330,7 +330,7 @@ export default function CombatIndexScreen() {
                             </Text>
 
                             <Pressable
-                                onPress={() => router.push('/dm/combat/history')}
+                                onPress={() => router.push('/user/dm/combat/history')}
                             >
                                 <Text
                                     style={[

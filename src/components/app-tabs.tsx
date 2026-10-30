@@ -33,20 +33,20 @@ export default function AppTabs({ mode }: AppTabsProps) {
       <TabList asChild>
         <CustomTabList>
           {isPlayer ? (
-            <TabTrigger name="index" href="/player" asChild>
+            <TabTrigger name="index" href="/user/player" asChild>
               <TabButton>Home</TabButton>
             </TabTrigger>
           ) : (
             <>
-              <TabTrigger name="index" href="/dm" asChild>
+              <TabTrigger name="index" href="/user/dm" asChild>
                 <TabButton>Party</TabButton>
               </TabTrigger>
 
-              <TabTrigger name="combat" href="/dm/combat" asChild>
+              <TabTrigger name="combat" href="/user/dm/combat" asChild>
                 <TabButton>Combat</TabButton>
               </TabTrigger>
 
-              <TabTrigger name="details" href="/dm/character" asChild>
+              <TabTrigger name="details" href="/user/dm/character" asChild>
                 <TabButton>Details</TabButton>
               </TabTrigger>
             </>
@@ -54,7 +54,7 @@ export default function AppTabs({ mode }: AppTabsProps) {
 
           <TabTrigger
             name="characters"
-            href={isPlayer ? '/player/characters' : '/dm/characters'}
+            href={isPlayer ? '/user/player/characters' : '/user/dm/characters'}
             asChild
           >
             <TabButton>Characters</TabButton>

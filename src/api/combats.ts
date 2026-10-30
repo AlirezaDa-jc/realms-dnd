@@ -1,12 +1,9 @@
-
+import { apiRequest } from '@/api/client';
 import {
-    Combat,
-    type CombatData,
-    type CombatantRef,
+  Combat,
+  type CombatData,
+  type CombatantRef,
 } from '@/models/combat';
-
-const API_BASE_URL =
-    process.env.EXPO_PUBLIC_REALMS_API_URL ?? 'https://realms-api-n6n1.onrender.com/api';
 
 export type CombatSummary = {
     id: string;
@@ -27,30 +24,7 @@ async function request<T>(
     path: string,
     options: RequestInit = {},
 ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        ...options,
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    });
-
-    const body: unknown = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        const errorBody = body as
-            | { error?: string; message?: string }
-            | null;
-
-        throw new Error(
-            errorBody?.error ??
-            errorBody?.message ??
-            `API request failed (${response.status})`,
-        );
-    }
-
-    return body as T;
+    return apiRequest<T>(path, options);
 }
 
 /**

@@ -47,7 +47,7 @@ export default function CharactersScreen() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const pathname = usePathname();
-    const isDMMode = pathname.startsWith('/dm');
+    const isDMMode = pathname.startsWith('/user/dm');
     const refreshCharacters = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -694,7 +694,7 @@ export default function CharactersScreen() {
 
         try {
             await setActiveCharacter(id);
-            router.replace(isDMMode ? '/dm/character' : '/player');
+            router.replace(isDMMode ? '/user/dm/character' : '/user/player');
         } catch (err) {
             showInfo(
                 'Could not open character',

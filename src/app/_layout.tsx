@@ -1,13 +1,25 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native';
 
+import { SessionProvider, useSession } from '@/auth/session-context';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { DialogProvider } from '@/components/dialog/realms-dialog';
 import { getDatabase } from '@/database/database';
 
-SplashScreen.preventAutoHideAsync().catch(() => { });
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -20,23 +32,16 @@ export default function RootLayout() {
     async function initializeDatabase() {
       try {
         await getDatabase();
-
-        if (mounted) {
-          setDatabaseReady(true);
-        }
-      } catch (error) {
-        if (mounted) {
-          setDatabaseError(
-            error instanceof Error
-              ? error.message
-              : 'Failed to initialize the database.',
-          );
-        }
+        if (mounted) setDatabaseReady(true);
+      } catch (cause) {
+        if (!mounted) return;
+        setDatabaseError(
+          cause instanceof Error ? cause.message : 'Failed to initialize the database.',
+        );
       }
     }
 
-    initializeDatabase();
-
+    void initializeDatabase();
     return () => {
       mounted = false;
     };
@@ -44,48 +49,72 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (databaseReady || databaseError) {
-      SplashScreen.hideAsync().catch(() => { });
+      SplashScreen.hideAsync().catch(() => {});
     }
-  }, [databaseReady, databaseError]);
+  }, [databaseError, databaseReady]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       {databaseError ? (
-        <View
-          style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 24,
-          }}
-        >
-          <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>
-            Database initialization failed
-          </Text>
-          <Text style={{ textAlign: 'center' }}>{databaseError}</Text>
+        <View style={styles.center}>
+          <Text style={styles.errorTitle}>Database initialization failed</Text>
+          <Text style={styles.errorCopy}>{databaseError}</Text>
         </View>
       ) : databaseReady ? (
-        <DialogProvider>
-          <AnimatedSplashOverlay />
-
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="player" />
-            <Stack.Screen name="dm" />
-            <Stack.Screen name="characters" />
-          </Stack>
-        </DialogProvider>
+        <SessionProvider>
+          <DialogProvider>
+            <AuthenticatedRoutes />
+          </DialogProvider>
+        </SessionProvider>
       ) : (
-        <View
-          style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-        >
+        <View style={styles.center}>
           <ActivityIndicator size="large" />
         </View>
       )}
     </ThemeProvider>
   );
 }
+
+function AuthenticatedRoutes() {
+  const { user, loading } = useSession();
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <AnimatedSplashOverlay />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={user !== null}>
+          <Stack.Screen name="user" />
+          <Stack.Screen name="characters" />
+        </Stack.Protected>
+        <Stack.Protected guard={user === null}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+        </Stack.Protected>
+      </Stack>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  errorCopy: { textAlign: 'center' },
+});

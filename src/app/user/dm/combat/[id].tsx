@@ -526,7 +526,7 @@ export default function CombatScreen() {
 
         try {
             await setActiveCharacter(characterId);
-            router.push('/dm/character');
+            router.push('/user/dm/character');
         } catch (err) {
             showInfo(
                 'Could Not Open Character',
@@ -544,7 +544,7 @@ export default function CombatScreen() {
 
         try {
             await deleteCombat(combat.id);
-            router.replace('/combat');
+            router.replace('/user/dm/combat');
         } catch (err) {
             showInfo(
                 'Could Not Delete Combat',
@@ -1157,7 +1157,7 @@ export default function CombatScreen() {
                 )}
                 {renderButton(
                     'Back to Combats',
-                    () => router.replace('/combat'),
+                    () => router.replace('/user/dm/combat'),
                 )}
             </View>
         );
@@ -1349,7 +1349,7 @@ export default function CombatScreen() {
                 <View style={styles.footerActions}>
                     {renderButton(
                         'Back to Combats',
-                        () => router.replace('/combat'),
+                        () => router.replace('/user/dm/combat'),
                     )}
                     {renderButton(
                         'Delete Combat',

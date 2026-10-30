@@ -1,188 +1,79 @@
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
+import { Keyboard } from 'react-native';
+
+import { useSession } from '@/auth/session-context';
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme,
-} from 'react-native';
+  AuthButton,
+  AuthError,
+  AuthField,
+  AuthLink,
+  AuthScreen,
+  RememberMe,
+} from '@/components/auth/auth-screen';
 
-import { Colors } from '@/constants/theme';
+export default function LoginScreen() {
+  const { signIn } = useSession();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-export default function IndexScreen() {
-    const scheme = useColorScheme();
-    const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  async function submit() {
+    if (busy) return;
+    if (!username.trim() || !password) {
+      setError('Enter your username or email and password.');
+      return;
+    }
 
-    return (
-        <View
-            style={[
-                styles.container,
-                { backgroundColor: colors.background },
-            ]}
-        >
-            <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+    Keyboard.dismiss();
+    setBusy(true);
+    setError('');
 
-            <View style={styles.header}>
-                <Text style={[styles.eyebrow, { color: colors.accent }]}>
-                    DUNGEONS & DRAGONS · 2024
-                </Text>
+    try {
+      await signIn(username.trim(), password, rememberMe);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not sign in.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
-                <Text style={[styles.title, { color: colors.text }]}>
-                    REALMS
-                </Text>
-
-                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                    Choose your mode
-                </Text>
-            </View>
-
-            <View style={styles.options}>
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={() => router.replace('/player')}
-                    style={({ pressed }) => [
-                        styles.card,
-                        {
-                            backgroundColor: colors.backgroundElement,
-                            borderColor: colors.border,
-                            opacity: pressed ? 0.75 : 1,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.symbol, { color: colors.accent }]}>
-                        ⚔
-                    </Text>
-
-                    <View style={styles.cardContent}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]}>
-                            Player
-                        </Text>
-
-                        <Text
-                            style={[
-                                styles.description,
-                                { color: colors.textSecondary },
-                            ]}
-                        >
-                            Manage your characters, abilities, equipment, spells, and resources.
-                        </Text>
-                    </View>
-
-                    <Text style={[styles.arrow, { color: colors.accent }]}>
-                        ›
-                    </Text>
-                </Pressable>
-
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={() => router.replace('/dm')}
-                    style={({ pressed }) => [
-                        styles.card,
-                        {
-                            backgroundColor: colors.backgroundElement,
-                            borderColor: colors.border,
-                            opacity: pressed ? 0.75 : 1,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.symbol, { color: colors.accent }]}>
-                        ♜
-                    </Text>
-
-                    <View style={styles.cardContent}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]}>
-                            Dungeon Master
-                        </Text>
-
-                        <Text
-                            style={[
-                                styles.description,
-                                { color: colors.textSecondary },
-                            ]}
-                        >
-                            Manage your party, combat, characters, and NPCs.
-                        </Text>
-                    </View>
-
-                    <Text style={[styles.arrow, { color: colors.accent }]}>
-                        ›
-                    </Text>
-                </Pressable>
-            </View>
-
-            <Text style={[styles.footer, { color: colors.textSecondary }]}>
-                Your world. Your characters. Your story.
-            </Text>
-        </View>
-    );
+  return (
+    <AuthScreen
+      title="Welcome back"
+      description="Sign in to continue to your characters and games."
+    >
+      <AuthField
+        label="Username or email"
+        accessibilityLabel="Username or email"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="username"
+        returnKeyType="next"
+        value={username}
+        onChangeText={setUsername}
+        placeholder="Enter your username or email"
+      />
+      <AuthField
+        label="Password"
+        accessibilityLabel="Password"
+        secureTextEntry
+        autoComplete="current-password"
+        returnKeyType="done"
+        value={password}
+        onChangeText={setPassword}
+        onSubmitEditing={() => void submit()}
+        placeholder="Enter your password"
+      />
+      <RememberMe value={rememberMe} onChange={setRememberMe} />
+      <AuthError message={error} />
+      <AuthButton title="Sign in" busy={busy} onPress={() => void submit()} />
+      <AuthLink
+        title="Create an account"
+        onPress={() => router.push('/register')}
+      />
+    </AuthScreen>
+  );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 40,
-    },
-    header: {
-        alignItems: 'center',
-        marginBottom: 44,
-    },
-    eyebrow: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 3,
-        marginBottom: 12,
-    },
-    title: {
-        fontSize: 42,
-        fontWeight: '900',
-        letterSpacing: 7,
-    },
-    subtitle: {
-        fontSize: 15,
-        marginTop: 10,
-    },
-    options: {
-        width: '100%',
-        maxWidth: 520,
-        alignSelf: 'center',
-        gap: 16,
-    },
-    card: {
-        minHeight: 126,
-        borderWidth: 1,
-        borderRadius: 14,
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    symbol: {
-        fontSize: 34,
-        width: 42,
-        textAlign: 'center',
-    },
-    cardContent: {
-        flex: 1,
-        gap: 8,
-    },
-    cardTitle: {
-        fontSize: 19,
-        fontWeight: '700',
-    },
-    description: {
-        fontSize: 13,
-        lineHeight: 19,
-    },
-    arrow: {
-        fontSize: 30,
-        fontWeight: '300',
-    },
-    footer: {
-        textAlign: 'center',
-        fontSize: 12,
-        marginTop: 36,
-    },
-});

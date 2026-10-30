@@ -86,7 +86,7 @@ export default function DMIndexScreen() {
         setOpeningId(id);
         try {
             await setActiveCharacter(id);
-            router.replace('/dm/character');
+            router.replace('/user/dm/character');
         } catch (err) {
             setError(
                 err instanceof Error

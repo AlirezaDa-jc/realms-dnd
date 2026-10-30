@@ -1,6 +1,7 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const fsPromises = require('node:fs/promises');
 const http = require('node:http');
 
 const DIST_DIR = path.resolve(__dirname, '..', 'dist');
@@ -110,6 +111,7 @@ async function createWindow(baseUrl) {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            preload: path.join(__dirname, 'preload.cjs'),
             sandbox: true,
         },
     });
@@ -141,4 +143,31 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
     localServer?.close();
+});
+
+ipcMain.handle('realms:session:read', async () => {
+    if (!safeStorage.isEncryptionAvailable()) return null;
+
+    const sessionPath = path.join(app.getPath('userData'), 'auth-session.bin');
+    try {
+        const encrypted = await fsPromises.readFile(sessionPath);
+        return safeStorage.decryptString(encrypted);
+    } catch {
+        return null;
+    }
+});
+
+ipcMain.handle('realms:session:write', async (_event, value) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error('Secure session storage is unavailable.');
+    }
+
+    const sessionPath = path.join(app.getPath('userData'), 'auth-session.bin');
+    const encrypted = safeStorage.encryptString(String(value));
+    await fsPromises.writeFile(sessionPath, encrypted, { mode: 0o600 });
+});
+
+ipcMain.handle('realms:session:clear', async () => {
+    const sessionPath = path.join(app.getPath('userData'), 'auth-session.bin');
+    await fsPromises.rm(sessionPath, { force: true });
 });

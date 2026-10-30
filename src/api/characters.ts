@@ -1,33 +1,12 @@
+import { apiRequest } from '@/api/client';
 import { characterFromJSON, characterToJSON } from '@/database/character-serializer';
 import type { Character } from '@/models/character';
-
-const API_BASE_URL = 'https://realms-api-n6n1.onrender.com/api';
 
 async function request<T>(
     path: string,
     options: RequestInit = {},
 ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        ...options,
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    });
-
-    const body = await response.json().catch(() => null);
-    console.log('body:' , body)
-
-    if (!response.ok) {
-        throw new Error(
-            body?.error ??
-            body?.message ??
-            `API request failed (${response.status})`,
-        );
-    }
-
-    return body as T;
+    return apiRequest<T>(path, options);
 }
 
 export type CharacterSummary = {

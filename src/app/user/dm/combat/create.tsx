@@ -228,7 +228,7 @@ export default function CreateCombatScreen() {
             await saveCombat(combat);
 
             router.replace({
-                pathname: '/dm/combat/[id]',
+                pathname: '/user/dm/combat/[id]',
                 params: { id: combat.id },
             });
         } catch (err) {
