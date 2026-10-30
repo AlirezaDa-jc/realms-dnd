@@ -6,7 +6,7 @@ import {
 } from '@/models/combat';
 
 const API_BASE_URL =
-    process.env.EXPO_PUBLIC_REALMS_API_URL ?? 'http://localhost:4317/api';
+    process.env.EXPO_PUBLIC_REALMS_API_URL ?? 'https://realms-api-n6n1.onrender.com/api';
 
 export type CombatSummary = {
     id: string;

@@ -54,11 +54,11 @@ export default function CharactersScreen() {
 
         try {
             const summaries = await listCharacters();
-
             const entries = await Promise.all(
                 summaries.map(async (summary) => {
                     const character = await loadCharacter(summary.id);
-
+                    console.log(character)
+                    console.log(character)
                     return {
                         id: summary.id,
                         name: character.name || summary.name || 'Unnamed Character',

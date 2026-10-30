@@ -1,7 +1,7 @@
 import { characterFromJSON, characterToJSON } from '@/database/character-serializer';
 import type { Character } from '@/models/character';
 
-const API_BASE_URL = 'http://192.168.1.100:3000/api';
+const API_BASE_URL = 'https://realms-api-n6n1.onrender.com/api';
 
 async function request<T>(
     path: string,
@@ -17,6 +17,7 @@ async function request<T>(
     });
 
     const body = await response.json().catch(() => null);
+    console.log('body:' , body)
 
     if (!response.ok) {
         throw new Error(
@@ -55,15 +56,27 @@ function deserializeCharacter(data: unknown): Character {
 }
 
 export async function listCharacters(): Promise<CharacterSummary[]> {
-    return request<CharacterSummary[]>('/characters');
+    const result = await request<unknown>('/characters');
+
+    const data =
+        result &&
+            typeof result === 'object' &&
+            'data' in result
+            ? result.data
+            : result;
+
+    if (!Array.isArray(data)) {
+        throw new Error(
+            'The server returned an invalid character list.',
+        );
+    }
+    return data as CharacterSummary[];
 }
 
 export async function loadCharacter(id: string): Promise<Character> {
     const result = await request<CharacterResponse | unknown>(
         `/characters/${encodeURIComponent(id)}`,
     );
-
-    // Supports either { character: ... } or a direct character response.
     const data =
         result &&
             typeof result === 'object' &&
@@ -71,7 +84,7 @@ export async function loadCharacter(id: string): Promise<Character> {
             ? (result as CharacterResponse).character
             : result;
 
-    return deserializeCharacter(data);
+    return deserializeCharacter(data?.data);
 }
 
 export async function saveCharacter(

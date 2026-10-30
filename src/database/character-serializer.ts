@@ -84,7 +84,6 @@ export function characterFromJSON(json: string): Character {
             ),
         ]),
     );
-
     character.resources = (
         (data.resources ?? []) as SerializedResource[]
     ).map(
