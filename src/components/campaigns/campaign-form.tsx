@@ -1,5 +1,5 @@
 
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -27,8 +27,10 @@ export default function CampaignForm({
 }) {
   const state = useCampaign();
   const colors = useCampaignColors();
+  const { code } = useLocalSearchParams<{ code?: string | string[] }>();
+  const invitationCode = Array.isArray(code) ? code[0] ?? '' : code ?? '';
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState(invitationCode);
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

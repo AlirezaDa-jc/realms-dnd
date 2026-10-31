@@ -39,6 +39,30 @@ export async function createCampaign(
   ).data;
 }
 
+export type CampaignInvite = {
+  id: string;
+  campaign_id: string;
+  expires_at: string | null;
+  max_uses: number | null;
+  uses: number;
+  created_at: string;
+  code: string;
+};
+
+export async function createCampaignInvite(
+  campaignId: string,
+): Promise<CampaignInvite> {
+  return (
+    await apiRequest<Envelope<CampaignInvite>>(
+      `/campaigns/${encodeURIComponent(campaignId)}/invites`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+  ).data;
+}
+
 export async function joinCampaign(code: string): Promise<Campaign> {
   return (
     await apiRequest<Envelope<Campaign>>('/campaigns/join', {

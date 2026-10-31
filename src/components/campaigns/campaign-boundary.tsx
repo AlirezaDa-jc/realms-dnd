@@ -22,6 +22,8 @@ import { useSession } from '@/auth/session-context';
 import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from 'react-native';
 
+import CampaignInviteControl from './campaign-invite-control';
+
 import {
   CampaignButton,
   CampaignLoading,
@@ -186,6 +188,9 @@ export default function CampaignBoundary({
 
         {/* Campaign actions */}
         <View style={styles.actions}>
+          {mode === 'dm' && state.campaign.role === 'dm' ? (
+            <CampaignInviteControl campaign={state.campaign} />
+          ) : null}
           <HeaderButton
             label="Change Campaign"
             onPress={() =>

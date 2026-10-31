@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   },
 
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '700',
   },
 

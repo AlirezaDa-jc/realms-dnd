@@ -44,7 +44,7 @@ type CharacterEntry = {
 };
 
 export default function CharactersScreen() {
-  const { campaign, selectCharacter } = useCampaign();
+  const { campaign, characterId, selectCharacter } = useCampaign();
   const [filters, setFilters] = useState<CharacterFilters>({});
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
@@ -52,6 +52,9 @@ export default function CharactersScreen() {
   const router = useRouter();
   const { showDialog, showInfo, showConfirm } = useDialog();
   const [characters, setCharacters] = useState<CharacterEntry[]>([]);
+  const [assignedCharacterIds, setAssignedCharacterIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,13 +66,19 @@ export default function CharactersScreen() {
 
     try {
       if (isDMMode && !campaign) throw new Error('Choose a campaign first.');
-      const [summaries, owned] = await Promise.all([
+      const [summaries, owned, campaignCharacters] = await Promise.all([
         listCharacters(
           isDMMode ? { ...filters, campaignId: campaign!.id } : {},
         ),
         isDMMode ? listCharacters() : Promise.resolve(null),
+        campaign
+          ? listCharacters({ campaignId: campaign.id })
+          : Promise.resolve([]),
       ]);
       const ownedIds = new Set((owned ?? summaries).map((item) => item.id));
+      setAssignedCharacterIds(
+        new Set(campaignCharacters.map((item) => item.id)),
+      );
       const entries = await Promise.all(
         summaries.map(async (summary) => {
           const character = await loadCharacter(summary.id);
@@ -741,7 +750,15 @@ export default function CharactersScreen() {
         selectCharacter(id);
         router.push({ pathname: '/user/dm/character', params: { id } });
       } else {
-        router.push({ pathname: '/characters/[id]', params: { id } });
+        if (!campaign) throw new Error('Choose a campaign first.');
+
+        if (!assignedCharacterIds.has(id)) {
+          await assignCharacter(campaign.id, id);
+          setAssignedCharacterIds((current) => new Set(current).add(id));
+        }
+
+        selectCharacter(id);
+        router.replace('/user/player');
       }
     } catch (err) {
       showInfo(
@@ -1037,7 +1054,11 @@ export default function CharactersScreen() {
                 </Text>
 
                 <Text style={[styles.openHint, { color: colors.accent }]}>
-                  Open character →
+                  {isDMMode
+                    ? 'Open character'
+                    : entry.id === characterId
+                      ? 'Active character - View Home'
+                      : 'Set as active character'}
                 </Text>
               </Pressable>
 
@@ -1056,7 +1077,7 @@ export default function CharactersScreen() {
                     Export JSON
                   </Text>
                 </Pressable>
-                {entry.canEdit && (
+                {isDMMode && entry.canEdit && (
                   <Pressable
                     onPress={() => editCharacter(entry.id)}
                     style={[
