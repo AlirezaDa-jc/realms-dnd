@@ -35,7 +35,7 @@
     "react": "19.2.3",
     "react-devtools": "^8.0.0",
     "react-dom": "19.2.3",
-    "react-native": "0.86.3",
+    "react-native": "^0.86.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
@@ -47,6 +47,8 @@
     "@types/react": "~19.2.2",
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -59,7 +61,9 @@
     "web:build": "expo export --platform web",
     "desktop:dev": "electron electron/main.cjs",
     "desktop:dir": "npm run web:build && electron-builder --dir",
-    "desktop:dist": "npm run web:build && electron-builder"
+    "desktop:dist": "npm run web:build && electron-builder",
+    "test": "node --test tests/*.test.cjs",
+    "typecheck": "tsc --noEmit"
   },
   "build": {
     "appId": "com.realms.realms",

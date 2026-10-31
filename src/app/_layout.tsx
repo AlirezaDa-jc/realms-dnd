@@ -1,9 +1,5 @@
-import {
-  DarkTheme,
-  DefaultTheme,
-  Stack,
-  ThemeProvider,
-} from 'expo-router';
+import { CampaignProvider } from '@/campaigns/campaign-context';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import {
@@ -36,7 +32,9 @@ export default function RootLayout() {
       } catch (cause) {
         if (!mounted) return;
         setDatabaseError(
-          cause instanceof Error ? cause.message : 'Failed to initialize the database.',
+          cause instanceof Error
+            ? cause.message
+            : 'Failed to initialize the database.',
         );
       }
     }
@@ -63,7 +61,9 @@ export default function RootLayout() {
       ) : databaseReady ? (
         <SessionProvider>
           <DialogProvider>
-            <AuthenticatedRoutes />
+            <CampaignProvider>
+              <AuthenticatedRoutes />
+            </CampaignProvider>
           </DialogProvider>
         </SessionProvider>
       ) : (

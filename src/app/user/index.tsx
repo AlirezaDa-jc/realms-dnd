@@ -1,3 +1,8 @@
+import {
+  CampaignButton,
+  CampaignLoading,
+} from '@/components/campaigns/campaign-ui';
+import { useCampaign } from '@/campaigns/campaign-context';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -8,11 +13,14 @@ import {
   useColorScheme,
 } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 
 export default function UserHomeScreen() {
+  const { chooseRole, loading, campaign, mode } = useCampaign();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+
+  if (loading) return <CampaignLoading />;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -38,7 +46,10 @@ export default function UserHomeScreen() {
           borderColor={colors.border}
           textColor={colors.text}
           secondaryColor={colors.textSecondary}
-          onPress={() => router.replace('/user/player')}
+          onPress={() => {
+            chooseRole('player');
+            router.push('/user/campaigns');
+          }}
         />
         <ModeCard
           badge="DM"
@@ -49,8 +60,24 @@ export default function UserHomeScreen() {
           borderColor={colors.border}
           textColor={colors.text}
           secondaryColor={colors.textSecondary}
-          onPress={() => router.replace('/user/dm')}
+          onPress={() => {
+            chooseRole('dm');
+            router.push('/user/campaigns');
+          }}
         />
+      </View>
+
+      <View style={{
+        marginVertical: Spacing.four
+      }}>
+        {campaign && mode && (
+          <CampaignButton
+            title={`Continue in ${campaign.name}`}
+            onPress={() =>
+              router.push(mode === 'dm' ? '/user/dm' : '/user/player')
+            }
+          />
+        )}
       </View>
 
       <Text style={[styles.footer, { color: colors.textSecondary }]}>

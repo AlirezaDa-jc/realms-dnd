@@ -1,5 +1,9 @@
 import AppTabs from '@/components/app-tabs';
-
-export default function DmLayout() {
-    return <AppTabs mode="dm" />;
+import CampaignBoundary from '@/components/campaigns/campaign-boundary';
+export default function ModeLayout() {
+  return (
+    <CampaignBoundary mode="dm">
+      <AppTabs mode="dm" />
+    </CampaignBoundary>
+  );
 }
