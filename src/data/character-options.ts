@@ -66,6 +66,7 @@ export const SPECIES_GROUPS = [
 ] as const;
 
 export const CHARACTER_CLASSES = [
+  'Artificer',
   'Barbarian',
   'Bard',
   'Cleric',
@@ -78,7 +79,6 @@ export const CHARACTER_CLASSES = [
   'Sorcerer',
   'Warlock',
   'Wizard',
-  'Artificer',
   'Non-specified',
 ] as const;
 
